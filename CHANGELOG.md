@@ -5,6 +5,40 @@ Detalhe de arquitetura e regras de bolso: `AGENTS.md`.
 
 ---
 
+## 2026-10-16 — modo interativo do simulador quebrado (achado pelo usuário no Kali)
+
+**O quê**
+- `simulator/simulator.py`: `asyncio.create_task(loop.run_in_executor(None,
+  input, ...))` → `TypeError: a coroutine was expected, got <Future>`.
+  Agora existe `async def read_line()` como wrapper, e EOF/Ctrl+D encerram limpo.
+- `quit` não saía: o `main()` reconectava em laço infinito e re-imprimia o help
+  (pior que o traceback, porque fica parecendo travado). `interactive_mode` agora
+  devolve `False` para "usuário quer sair".
+- Implementado `jogo <COMANDO>` no REPL: estava no `help` desde o começo mas nunca
+  existiu no código (doc mentindo sobre código).
+- Novo teste `tests/test_interativo.py`, no `run_all`.
+
+**Por quê**
+O usuário rodou no Kali (Python 3.14) e o simulador morreu no primeiro comando. Os
+testes passavam porque só cobriam `--auto`: **modo interativo, flags de CLI e
+`help` nunca foram exercitados**. Dois bugs de Once misses de primeira linha
+moravam exatamente ali.
+
+**Arquivos tocados**
+`simulator/simulator.py`, `tests/test_interativo.py`, `tests/run_all.py`,
+`AGENTS.md`.
+
+**Como verifiquei**
+`python3 tests/run_all.py` → 7 suítes verdes (o teste novo alimenta o simulador
+por stdin e confere que comentário/presente/like/follow/comando chegam no
+servidor e que o processo sai com código 0).
+
+**Lição registrada no AGENTS.md**
+`run_in_executor` devolve Future, `create_task` quer coroutine; e caminho de
+teste só conta se o teste o exercitar.
+
+---
+
 ## 2026-10-16 — memória de IA + testes no repositório
 
 **O quê**

@@ -26,6 +26,7 @@ from shared import gifts as gift_lib  # noqa: E402
 LOGGER = logging.getLogger("simulator")
 
 SERVER_URL = f"ws://127.0.0.1:{config.get_int('PORT', minimum=1)}"
+RECONNECT_DELAY = 3.0
 TOKEN = config.get_str("GAME_TOKEN")
 CONTROL_URL = f"{SERVER_URL}/?token={TOKEN}" if TOKEN else SERVER_URL
 SOURCE = "simulator"
@@ -100,22 +101,38 @@ comandos:
 """
 
 
-async def interactive_mode(websocket, stop: asyncio.Event) -> None:
-    """REPL simples para disparar evento por evento."""
+async def read_line(prompt: str) -> str:
+    """Le uma linha do teclado sem travar o event loop.
+
+    `loop.run_in_executor` devolve um Future, e `asyncio.create_task` so aceita
+    coroutine — por isso o wrapper (o erro aparece so no modo interativo).
+    """
     loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, input, prompt)
+
+
+async def interactive_mode(websocket, stop: asyncio.Event) -> bool:
+    """REPL simples para disparar evento por evento.
+
+    Devolve False quando o usuario pediu para sair (quit, Ctrl+D, Ctrl+C).
+    """
     await report_status(websocket, True, "console")
     print(HELP)
 
     stop_task = asyncio.create_task(stop.wait())
     try:
         while not stop.is_set():
-            line_task = asyncio.create_task(loop.run_in_executor(None, input, "evento> "))
+            line_task = asyncio.create_task(read_line("evento> "))
             done, _ = await asyncio.wait({line_task, stop_task}, return_when=asyncio.FIRST_COMPLETED)
             if line_task not in done:
                 line_task.cancel()
-                return
+                return False
 
-            raw = (line_task.result() or "").strip()
+            try:
+                raw = (line_task.result() or "").strip()
+            except (EOFError, KeyboardInterrupt):  # stdin fechou (pipe, Ctrl+D)
+                print("\nate mais!")
+                return False
             if not raw:
                 continue
 
@@ -123,7 +140,7 @@ async def interactive_mode(websocket, stop: asyncio.Event) -> None:
             action = cmd.normalize(action)
 
             if action in {"quit", "exit", "sair"}:
-                return
+                return False
             if action in {"help", "ajuda"}:
                 print(HELP)
                 continue
@@ -143,6 +160,13 @@ async def interactive_mode(websocket, stop: asyncio.Event) -> None:
             if action == "follow":
                 await send(websocket, {"event": "follow", "user": "voce"})
                 continue
+            if action == "jogo":
+                command = argument.strip().upper()
+                if command in cmd.COMMANDS:
+                    await send(websocket, {"event": "command", "command": command, "user": "console"})
+                else:
+                    print(f"comando invalido: {command!r}. use: {', '.join(cmd.COMMANDS)}")
+                continue
 
             if raw.upper() in cmd.COMMANDS:
                 await send(websocket, {"event": "command", "command": raw.upper(), "user": "console"})
@@ -151,6 +175,8 @@ async def interactive_mode(websocket, stop: asyncio.Event) -> None:
             print("nao entendi. digite 'help'.")
     finally:
         stop_task.cancel()
+
+    return not stop.is_set()
 
 
 async def main() -> None:
@@ -162,11 +188,14 @@ async def main() -> None:
             async with websockets.connect(CONTROL_URL) as websocket:
                 if "--auto" in sys.argv:
                     await auto_mode(websocket, stop)
-                else:
-                    await interactive_mode(websocket, stop)
-        except OSError as err:
-            LOGGER.error("nao consegui falar com %s (%s). o servidor esta rodando?", SERVER_URL, err)
-            return
+                    return
+                # interativo: so volta a conectar se o usuario nao tiver saido
+                if not await interactive_mode(websocket, stop):
+                    LOGGER.info("simulador encerrado")
+                    return
+        except (OSError, websockets.exceptions.WebSocketException) as err:
+            LOGGER.error("nao consegui falar com %s (%s)", SERVER_URL, err)
+            await asyncio.sleep(RECONNECT_DELAY)
         except KeyboardInterrupt:
             return
 

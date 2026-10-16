@@ -18,6 +18,7 @@ SUITE = [
     ("duelo", "test_duelo.py"),
     ("pipa", "test_pipa.py"),
     ("token", "test_token.py"),
+    ("interativo", "test_interativo.py"),
     ("simulador", "test_simulador.py"),
 ]
 

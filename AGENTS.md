@@ -117,6 +117,15 @@ curl -s localhost:8080/health
    reprodutível.
 9. **Apresentação não é estado.** `snapshot()` não manda campo que só existe para
    desenhar bonito.
+10. **`asyncio.create_task()` não aceita Future.** `loop.run_in_executor()`
+    devolve Future; embrulhe em `async def` antes de criar a task (bug do modo
+    interativo do simulador, que só aparecia digitando no terminal).
+11. **REPL com reconexão precisa sinalizar "saiu".** Sem isso, `quit` reconecta e
+    re-imprime o help em laço infinito (foi o segundo bug do mesmo trecho).
+12. **Caminho de teste só é testado se o teste o exercitar.** Modo interativo,
+    flags de CLI e `help` não entram em suíte sozinhos: `tests/test_interativo.py`
+    alimenta o simulador por stdin justamente para cobrir isso. Ao mexer em
+    entrada do usuário, escreva o teste na mesma hora.
 
 ## 6. Ao adicionar um jogo (checklist)
 
