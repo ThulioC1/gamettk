@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stream Games - Launcher</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="topbar">
+      <div class="brand">
+        <h1 id="gameTitle">STREAM GAMES</h1>
+        <p id="callToAction">carregando…</p>
+      </div>
+      <div class="topbar-right">
+        <select id="gameSelect" title="trocar de jogo"></select>
+        <div class="status" id="connection">conectando…</div>
+      </div>
+    </header>
+
+    <section class="stage">
+      <canvas id="game" width="960" height="540"></canvas>
+
+      <div class="hud">
+        <div class="hud-left">
+          <div class="pill score" id="score"></div>
+          <div class="pill" id="gameMeta"></div>
+        </div>
+        <div class="hud-right">
+          <div class="pill tiktok" id="tiktokStatus">TikTok: desconectado</div>
+          <div class="pill" id="viewers">0 tela(s)</div>
+        </div>
+      </div>
+
+      <div class="feed" id="feed"></div>
+    </section>
+
+    <section class="panel">
+      <div class="controls" id="controls"></div>
+      <p class="last-event" id="lastEvent">aguardando evento da live…</p>
+
+      <details>
+        <summary>como a live controla o jogo</summary>
+        <p>
+          O <code>tiktok/bot.py</code> lê a live e repassa cada comentário, presente, like e
+          follow como evento para o servidor, que entrega ao módulo do jogo
+          (<code>server/games/</code>). O navegador só desenha o estado — quem decide é o servidor.
+        </p>
+        <p>
+          Sem live? <code>python3 simulator/simulator.py</code> simula comentários e presentes
+          pelo terminal, ou <code>--auto</code> para gerar movimento sozinha.
+        </p>
+        <p class="hint">
+          Fechar navegador não derruba o jogo: o estado vive no servidor. Para trocar de jogo,
+          use o seletor acima ou <code>/?game=corrida</code>.
+        </p>
+      </details>
+    </section>
+  </main>
+
+  <script type="module" src="client.js"></script>
+</body>
+</html>

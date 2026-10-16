@@ -1,0 +1,12 @@
+{
+  "title": "Pipa Arena",
+  "maxKites": 26,
+  "kiteSpeed": 0.45,
+  "stringPull": 0.0022,
+  "rivalRivals": 2,
+  "gifts": {
+    "NITRO": { "cuts": 1, "message": "CORTOU 1 LINHA!" },
+    "TURBO": { "cuts": 2, "message": "CORTOU 2 LINHAS!" },
+    "OIL": { "cuts": 3, "message": "CORTOU 3 LINHAS!" }
+  }
+}

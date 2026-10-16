@@ -1,0 +1,10 @@
+Implantação pronta. Resposta curta: no Kali, é um comando.
+cd local_stream_games_prototype
+bash deploy/install.sh seu_usuario_tiktok
+Esse script instala o python3-venv, cria o .venv, instala as dependências, gera o .env com um GAME_TOKEN aleatório e sobe dois serviços systemd (streamgames-server e streamgames-bot) que reinizam sozinhos. Depois é só apontar o OBS: Fonte de navegador → http://localhost:8080/.
+systemctl status streamgames-server streamgames-bot   # estado
+journalctl -u streamgames-bot -f                      # log da live
+curl -s localhost:8080/health                         # {ok, game, clients, tick}
+Uma coisa que eu adicionei antes de documentar isso: o servidor aceitava event de qualquer WebSocket que conectasse. Local não é problema, mas num VPS exposto qualquer pessoa abriria a URL e injetaria comentários/presentes falsos no seu placar. Agora existe GAME_TOKEN — obrigatório para enviar eventos, opcional para assistir (OBS e a audiência não precisam dele). Testei: sem token, token errado e token certo.
+Se for VPS (roda 24h, sua máquina só transmite): mesmo instalador, mais sudo ufw allow 8080/tcp, OBS em http://SEU_IP:8080/?game=corrida. Se a sua engine de live não carregar http://, a seção 10.3 do README tem Caddy e cloudflared para https/wss automático.
+Três coisas que o servidor não faz e que talvez você queira a seguir: não manda nada pro TikTok (só lê — postar exige cookies da sua conta, com risco de ban), não guarda ranking entre lives (reiniciar zera a partida) e roda uma partida por instância.

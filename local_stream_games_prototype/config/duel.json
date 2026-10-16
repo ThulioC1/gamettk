@@ -1,0 +1,30 @@
+{
+  "title": "Duelo de Torres",
+  "targetBlocks": 32,
+  "blockHeight": 12,
+  "sides": [
+    {
+      "id": "esquerda",
+      "name": "Lula",
+      "party": "PT",
+      "color": "#e11d48",
+      "dark": "#881337",
+      "tagline": "lado esquerdo",
+      "keywords": ["lula", "pt", "esquerda", "vermelho", "mahu", "lulismo"]
+    },
+    {
+      "id": "direita",
+      "name": "Flávio Bolsonaro",
+      "party": "PL",
+      "color": "#2563eb",
+      "dark": "#1e3a8a",
+      "tagline": "lado direito",
+      "keywords": ["flavio", "bolsonaro", "pl", "direita", "azul", "flavin"]
+    }
+  ],
+  "gifts": {
+    "NITRO": { "blocks": 2, "message": "+2 BLOCOS" },
+    "TURBO": { "blocks": 5, "message": "+5 BLOCOS" },
+    "OIL": { "sabotage": 2, "message": "DERRUBADA!" }
+  }
+}

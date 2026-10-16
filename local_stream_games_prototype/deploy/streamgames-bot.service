@@ -1,0 +1,29 @@
+# Unit do bot da live do TikTok.
+#
+# NAO copie direto: troque __USER__ e __HOME__ pelo seu usuario, ou use o
+# instalador, que faz isso por voce:
+#
+#   bash deploy/install.sh seu_usuario_tiktok
+#
+# O Restart=always cobre live encerrada: o proprio bot ja avisa e tenta de novo
+# a cada 30 s quando o criador nao esta ao vivo.
+
+[Unit]
+Description=Stream Games - bot da live do TikTok
+After=network-online.target streamgames-server.service
+Wants=network-online.target
+Requires=streamgames-server.service
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__HOME__/local_stream_games_prototype
+Environment=PATH=__HOME__/local_stream_games_prototype/.venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=__HOME__/local_stream_games_prototype/.venv/bin/python tiktok/bot.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

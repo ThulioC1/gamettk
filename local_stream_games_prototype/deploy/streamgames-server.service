@@ -1,0 +1,29 @@
+# Unit do servidor do jogo (HTTP + WebSocket).
+#
+# NAO copie direto: troque __USER__ e __HOME__ pelo seu usuario, ou use o
+# instalador, que faz isso por voce:
+#
+#   bash deploy/install.sh seu_usuario_tiktok
+#
+# Depois:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now streamgames-server
+
+[Unit]
+Description=Stream Games - servidor do jogo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__HOME__/local_stream_games_prototype
+Environment=PATH=__HOME__/local_stream_games_prototype/.venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=__HOME__/local_stream_games_prototype/.venv/bin/python server/server.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

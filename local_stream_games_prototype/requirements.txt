@@ -1,0 +1,11 @@
+# Dependencias do prototipo (Kali Linux / Python 3.10+)
+#
+#   sudo apt install -y python3-venv
+#   python3 -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements.txt
+
+# Servidor HTTP (static files) + WebSocket do jogo
+websockets>=14.0
+
+# Leitura do chat da live do TikTok (API nao-oficial / reverse engineering)
+TikTokLive>=7.0
