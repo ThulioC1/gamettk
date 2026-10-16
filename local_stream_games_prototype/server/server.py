@@ -18,13 +18,14 @@ import signal
 import sys
 import time
 from http import HTTPStatus
-from typing import Any, Dict, Set
+from typing import Any, Dict, Optional, Set
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from websockets.asyncio.server import ServerConnection, serve  # type: ignore
 from websockets.exceptions import ConnectionClosed  # type: ignore
 
+from server.base import GameBase  # noqa: E402
 from server.games import DEFAULT_GAME, GAMES, build  # noqa: E402
 from shared import config  # noqa: E402
 
@@ -44,13 +45,27 @@ CONTROLLED_EVENTS = frozenset({"comment", "gift", "like", "follow", "share"})
 
 clients: Set[Any] = set()
 
+#: todos os jogos rodam ao mesmo tempo, cada um com seu proprio estado.
+#: Quem assiste escolhe qual quer ver (`?game=` na URL ou `watch` em tempo real);
+#: quem manda eventos (bot/simulador) manda para o jogo que ele assiste.
+games: Dict[str, GameBase] = {name: build(name) for name in GAMES}
+default_game: str = (config.get_str("GAME") or DEFAULT_GAME).lower()
+if default_game not in games:
+    default_game = DEFAULT_GAME
+
+#: web socket -> tipo do jogo que ele assiste
+watching: Dict[Any, str] = {}
+
 source_status: Dict[str, Dict[str, Any]] = {
     "tiktok": {"connected": False, "username": "", "note": "bot do TikTok offline"},
     "simulator": {"connected": False, "note": "simulador offline"},
 }
 
-game = None  # type: ignore[assignment]
 _events_window: list[float] = []
+
+
+def subscribers(game_type: str) -> Set[Any]:
+    return {client for client, watched in watching.items() if watched == game_type}
 
 
 # --------------------------------------------------------------------- utils
@@ -64,20 +79,33 @@ def _allow_event() -> bool:
     return True
 
 
-async def broadcast(payload: Dict[str, Any]) -> None:
-    if not clients:
+async def broadcast(payload: Dict[str, Any], game_type: Optional[str] = None) -> None:
+    """Envia o JSON para todos, ou so para quem assiste um jogo especifico."""
+    if game_type is None:
+        targets = list(clients)
+    else:
+        targets = list(subscribers(game_type))
+    if not targets:
         return
     message = json.dumps(payload)
-    await asyncio.gather(*(client.send(message) for client in list(clients)), return_exceptions=True)
+    await asyncio.gather(*(client.send(message) for client in targets), return_exceptions=True)
 
 
 async def broadcast_status() -> None:
-    await broadcast({"type": "status", "clients": len(clients), "sources": source_status, "game": game.type})
+    await broadcast({
+        "type": "status",
+        "clients": len(clients),
+        "sources": source_status,
+        "games": [
+            {"type": name, "watchers": len(subscribers(name)), "tick": games[name].tick}
+            for name in sorted(games)
+        ],
+    })
 
 
 # ----------------------------------------------------------------- eventos
 async def handle_event(payload: Dict[str, Any], source: str, websocket: Any = None) -> None:
-    """Valida, entrega ao jogo e avisa os clients (para o HUD mostrar quem agiu)."""
+    """Valida, entrega ao jogo que a conexao assiste e avisa os clients."""
     event_type = str(payload.get("event", "")).strip().lower()
     if event_type not in EVENT_TYPES:
         LOGGER.debug("evento ignorado (tipo desconhecido): %r", event_type)
@@ -88,6 +116,9 @@ async def handle_event(payload: Dict[str, Any], source: str, websocket: Any = No
     if not _allow_event():
         LOGGER.warning("teto de eventos atingido; %s de %s descartado", event_type, source)
         return
+
+    game_type = watching.get(websocket, default_game)
+    game = games[game_type]
 
     event = {
         "event": event_type,
@@ -103,10 +134,10 @@ async def handle_event(payload: Dict[str, Any], source: str, websocket: Any = No
 
     notices = game.handle_event(event)
 
-    await broadcast({"type": "event", "event": event, "notices": notices})
+    await broadcast({"type": "event", "game": game_type, "event": event, "notices": notices}, game_type)
     for notice in notices:
         if notice.get("message"):
-            LOGGER.info("[%s] %s", game.type, notice["message"])
+            LOGGER.info("[%s] %s", game_type, notice["message"])
 
 
 def _as_int(value: Any, default: int) -> int:
@@ -120,9 +151,15 @@ def _as_int(value: Any, default: int) -> int:
 async def handler(websocket: ServerConnection) -> None:
     clients.add(websocket)
     peer = getattr(websocket, "remote_address", None)
-    LOGGER.info("client conectado: %s (total %d)", peer, len(clients))
+    requested = _game_from_path(getattr(websocket, "streamgames_path", "") or "")
+    game_type = requested if requested in games else default_game
+    if requested and requested not in games:
+        LOGGER.warning("jogo '%s' pedido na URL nao existe; usando '%s'", requested, default_game)
+    watching[websocket] = game_type
+    LOGGER.info("client conectado: %s assistindo '%s' (total %d)", peer, game_type, len(clients))
 
-    await websocket.send(json.dumps({"type": "welcome", "game": game.describe(), "tickRate": TICK_RATE}))
+    await websocket.send(json.dumps({"type": "welcome", "game": games[game_type].describe(),
+                                    "tickRate": TICK_RATE, "games": sorted(games)}))
     await broadcast_status()
 
     try:
@@ -141,6 +178,17 @@ async def handler(websocket: ServerConnection) -> None:
 
             if message_type == "event":
                 await handle_event(payload, str(payload.get("source", "unknown"))[:16], websocket)
+            elif message_type == "watch":
+                # troca de jogo em tempo real, sem recarregar a pagina
+                wanted = str(payload.get("game", "")).strip().lower()
+                if wanted in games:
+                    watching[websocket] = wanted
+                    await websocket.send(json.dumps({"type": "game", "game": games[wanted].describe(),
+                                                    "tickRate": TICK_RATE}))
+                    LOGGER.info("client %s agora assiste '%s'", peer, wanted)
+                    await broadcast_status()
+                else:
+                    await websocket.send(json.dumps({"type": "error", "message": f"jogo desconhecido: {wanted}"}))
             elif message_type == "source_status":
                 if not _is_authorized(websocket):
                     LOGGER.warning("source_status ignorado: sem GAME_TOKEN")
@@ -162,6 +210,7 @@ async def handler(websocket: ServerConnection) -> None:
         LOGGER.exception("erro no handler do client %s", peer)
     finally:
         clients.discard(websocket)
+        watching.pop(websocket, None)
         LOGGER.info("client desconectado: %s (total %d)", peer, len(clients))
         await broadcast_status()
 
@@ -199,6 +248,16 @@ def _is_authorized(websocket: Any) -> bool:
     return bool(getattr(websocket, "streamgames_token_ok", False))
 
 
+def _game_from_path(url_path: str) -> str:
+    """Le ?game=... da URL de conexao."""
+    query = url_path.split("?", 1)[1] if "?" in url_path else ""
+    for part in query.split("&"):
+        key, _, value = part.partition("=")
+        if key == "game":
+            return value.strip().lower()
+    return ""
+
+
 async def process_request(connection: ServerConnection, request: Any) -> Any:
     """Serve o client do jogo na mesma porta do WebSocket."""
     path = getattr(request, "path", "/")
@@ -210,7 +269,8 @@ async def process_request(connection: ServerConnection, request: Any) -> Any:
         upgrade = ""
     if upgrade == "websocket":
         expected = config.get_str("GAME_TOKEN")
-        # marca a conexao como autorizada (ou nao) para o handler usar depois
+        # guarda a URL na conexao: e' de onde sai o ?game= e o ?token=
+        setattr(connection, "streamgames_path", path)
         setattr(connection, "streamgames_token_ok",
                 bool(expected) and secrets.compare_digest(_token_from_path(path), expected))
         return None
@@ -218,9 +278,11 @@ async def process_request(connection: ServerConnection, request: Any) -> Any:
     if base_path == "/health":
         return connection.respond(HTTPStatus.OK, json.dumps({
             "ok": True,
-            "game": game.type,
+            "game": default_game,
             "clients": len(clients),
-            "tick": game.tick,
+            "tick": games[default_game].tick,
+            "games": {name: {"watchers": len(subscribers(name)), "tick": games[name].tick}
+                      for name in sorted(games)},
         }))
 
     if base_path == "/games":
@@ -243,18 +305,19 @@ async def process_request(connection: ServerConnection, request: Any) -> Any:
 
 # ---------------------------------------------------------------- game loop
 async def game_loop() -> None:
-    """Loop fixo de 60 Hz; o estado viaja para os clients a cada 2 ticks."""
+    """Loop fixo de 60 Hz para TODOS os jogos; cada um so transmite a quem assiste."""
     interval = 1 / TICK_RATE
     loop = asyncio.get_running_loop()
     deadline = loop.time()
 
     while True:
         deadline += interval
-        for event in game.update():
-            await broadcast({"type": "game_event", "game": game.type, **event})
+        for game_type, game in games.items():
+            for event in game.update():
+                await broadcast({"type": "game_event", "game": game_type, **event}, game_type)
 
-        if game.tick % BROADCAST_EVERY_TICKS == 0:
-            await broadcast({"type": "state", "game": game.type, "state": game.snapshot()})
+            if game.tick % BROADCAST_EVERY_TICKS == 0:
+                await broadcast({"type": "state", "game": game_type, "state": game.snapshot()}, game_type)
 
         await asyncio.sleep(max(0.0, deadline - loop.time()))
 
@@ -275,15 +338,16 @@ def parse_args() -> argparse.Namespace:
 
 
 async def serve_forever(game_name: str, port: int) -> None:
-    global game
-    game = build(game_name)
-
+    """Sobe o servidor. Todos os jogos ficam disponiveis; `game_name` e so o padrao."""
     loop_task = asyncio.create_task(game_loop())
     status_task = asyncio.create_task(heartbeat())
 
-    LOGGER.info("jogo '%s' - %s", game.type, game.title)
-    LOGGER.info("call to action: %s", game.call_to_action)
-    LOGGER.info("http://localhost:%d/?game=%s", port, game.type)
+    LOGGER.info("jogos disponiveis: %s", ", ".join(sorted(games)))
+    LOGGER.info("padrao: %s - %s", default_game, games[default_game].title)
+    LOGGER.info("call to action: %s", games[default_game].call_to_action)
+    LOGGER.info("http://localhost:%d/?game=%s", port, default_game)
+    if game_name and game_name != default_game and game_name in games:
+        LOGGER.warning("--game %s so define o jogo PADRAO (os outros seguem disponiveis)", game_name)
 
     stop = asyncio.get_running_loop().create_future()
     loop = asyncio.get_running_loop()

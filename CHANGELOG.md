@@ -5,6 +5,92 @@ Detalhe de arquitetura e regras de bolso: `AGENTS.md`.
 
 ---
 
+## 2026-10-16 — Corrida na Live no formato da referência (modelos/2.jpeg)
+
+**O quê**
+- **Contagem regressiva**: a corrida começa em `LARGADA EM 00:10`, com todo mundo
+  parado a 0 km/h, e o evento `go` dispara o "VALENDO!".
+- **Grid de largada e faixas**: os carros entram empilhados (`GRID_COLUMNS`,
+  `GRID_COLUMN_GAP`, `GRID_ROW_GAP`, `CAR_LANES`) em vez de todos em `dist≈0`.
+- **Placa por carro** no formato da referência: número da colocação, nome do
+  viewer e velocidade em **km/h** (`KMH_FACTOR`).
+- **Catálogo de veículos**: `config/carros.json` + `shared/carros.py` com Gol,
+  Uno, Chevette, Fusca, Opala, Kombi, Celta, Palio, Yaris, Corolla, G8 e as motos
+  160, Biz, PCX, Pop 100, S1000, XRE 300 — cada um com cor e velocidade. O
+  viewer pede o carro no comentário ("tenho um gol", "vou de moto biz") ou ganha
+  um sorteado; pode trocar a qualquer momento.
+- Renderer reescrito: cidade em parallax, pista com faixas, painéis
+  "CARROS DISPONÍVEIS"/"MOTOS" à esquerda, liderança à direita, banner central de
+  evento, linha de largada e chegada, moto desenhada diferente de carro.
+- Fases explícitas no snapshot: `countdown` / `racing` / `over`.
+- `like` passou a dar um empurrão (antes só pontuava).
+- `tests/_harness.py`: espera a porta ficar pronta em vez de dormir tempo fixo
+  (a suite ficou instável quando o teste anterior ainda soltava a porta).
+
+**Por quê**
+O usuário mandou a imagem da Corrida real e pediu "é assim que quero o game". O
+que existia era uma pista com um blob colorido; faltava a linguagem visual do
+produto: largada contada, grid, faixas, placa com km/h e o catálogo de carros.
+
+**Arquivos tocados**
+`config/carros.json` (novo), `shared/carros.py` (novo),
+`server/games/corrida.py` (reescrito), `client/renderers/corrida.js` (reescrito),
+`shared/config.py`, `.env.example`, `README.md`, `tests/{test_corrida,_harness,render_check.mjs}`.
+
+**Como verifiquei**
+`python3 tests/run_all.py` → 9 suítes verdes. O `render_check.mjs` confere na
+tela: ≥3 carros no grid (`x=[286,302,319,336]`), 4 faixas distintas
+(`y=[448,379,316,250]`), o texto `LARGADA EM 00:10` e as placas com `180 km/h`.
+O `test_corrida.py` ganhou a seção B2 (contagem, grid, faixas, veículo por
+palavra, km/h) e um helper `larga()` — sem ele os testes rodavam dentro da
+contagem e nada se movia.
+
+---
+
+## 2026-10-16 — carros invisíveis, troca de jogo de verdade, suíte de render
+
+**O quê**
+- **Corrida na Live: os carros não apareciam.** Duas causas independentes:
+  1. `corrida.js` chamava `drawPops(context, view.delta)` numa função declarada
+     `drawPops(context, scope, delta)` — o `scope` recebia um número e
+     `scope.pops.filter(...)` estourava **a todo frame**, congelando o canvas
+     (era o erro que o usuário viu na tela).
+  2. A câmera usava `Math.max(0, ...)`: ficava travada em 0 até o líder passar
+     336 px, então todo carro atrás da largada ficava fora da tela.
+- Largada em grid (8 por fila), carros maiores (58→78 px), placa com o nome do
+  piloto, linha de largada e marcadores de distância a cada 1000 px — para o
+  movimento ficar legível na transmissão.
+- **Multijogo no servidor**: os quatro jogos agora rodam ao mesmo tempo, cada
+  tela assiste o que escolheu (`?game=` na URL) e troca em tempo real com
+  `{"type":"watch","game":"..."}`, sem recarregar a página. Antes o servidor rodava
+  um jogo só e o seletor não fazia nada (era o "só muda os pixels").
+- `share` passou a entrar na pista na Corrida (só `follow` era tratado).
+- `?game=nao_existe` derrubava a conexão com 1011 (KeyError) — agora cai no padrão.
+- Novo `tests/render_check.mjs`: roda cada renderer fora do navegador contra um
+  estado real, e prova que a Corrida desenha ≥3 carros na tela e que a posição
+  deles muda com a distância.
+- `tests/test_multijogo.py`: welcome por jogo, roteamento de estado, evento indo
+  para o jogo certo, troca em tempo real, jogo inválido, follow/share.
+- Testes de duelo e pipa passaram a pedir `?game=` na URL.
+
+**Por quê**
+O usuário entrou com a imagem da tela vazia e com o 1011 no terminal. O
+`render_check.mjs` nasceu porque **renderer quebrado não aparece em teste de
+back-end**: o Pythonrespondia 200, o WebSocket funcionava, e mesmo assim a tela
+fazia nada. Segundo a regra do `AGENTS.md`, o caminho que quebrou ganhou teste.
+
+**Arquivos tocados**
+`client/renderers/corrida.js`, `client/client.js`, `server/server.py`,
+`server/games/corrida.py`, `tests/{render_check.mjs,test_multijogo.py,run_all.py,
+test_duelo.py,test_pipa.py}`.
+
+**Como verifiquei**
+`python3 tests/run_all.py` → 9 suítes verdes (incluindo `render`, que roda em
+node). `tests/render_check.mjs` confere x=[293,307,322,336] na largada e
+posições diferentes quando os carros avançam.
+
+---
+
 ## 2026-10-16 — modo interativo do simulador quebrado (achado pelo usuário no Kali)
 
 **O quê**

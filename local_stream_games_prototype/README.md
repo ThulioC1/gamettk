@@ -131,17 +131,29 @@ No navegador, o seletor no topo troca sem reiniciar o servidor, ou por URL:
 
 ### 5.1 Corrida na Live
 
+Formato de referência em `modelos/2.jpeg`: contagem regressiva, grid de largada,
+carros empilhados em faixas, placa com número/nome/velocidade e catálogo de veículos.
+
 | Evento da live | O que acontece |
 |---|---|
-| comentário (viewer novo) | entra na pista com um carro numerado |
+| comentário (viewer novo) | entra no grid, no carro que a pessoa pediu ou num sorteado |
+| comentário com o nome do carro ("tenho um gol", "vou de moto biz") | troca o veículo na hora |
 | comentário (quem já tem carro) | acelera o próprio carro |
-| presente NITRO | impulso temporário (~1,5 s) |
-| presente ÓLEO | deixa uma mancha; quem passa derrapa e perde a corrida |
+| like | pontua e dá um empurrão |
+| follow / share | entra na pista como se fosse comentário |
+| presente NITRO | impulso temporário |
+| presente ÓLEO | mancha na pista; quem passa derrapa |
 | presente ULTRAPASSAGEM | impulso forte + ganha posição na hora |
-| like / follow | soma pontos no placar |
-| primeiro a cruzar a chegada | vence, placar congelado e nova corrida em ~7 s |
+| primeiro a cruzar a chegada | vence, e a próxima corrida começa com contagem |
 
-Placar no canto superior direito; quem acabou de entrar pisca no HUD.
+Antes de começar aparece **LARGADA EM 00:10** (`COUNTDOWN_SECONDS`) com todo mundo
+parado a 0 km/h. Cada carro mostra número, nome do viewer e velocidade em km/h
+(`KMH_FACTOR` converte px/frame em km/h).
+
+Catálogo em [`config/carros.json`](config/carros.json): Gol, Uno, Chevette, Fusca,
+Opala, Kombi, Celta, Palio, Yaris, Corolla, G8 e as motos 160, Biz, PCX, Pop 100,
+S1000, XRE 300 — cada um com cor e velocidade própria. Para trocar o catálogo:
+`CARROS_CONFIG=/caminho/meus_carros.json` no `.env`.
 
 ### 5.2 Duelo de Torres (Lula × Flávio Bolsonaro)
 
@@ -248,7 +260,15 @@ local_stream_games_prototype/
 │       └── platformer.py# demo com comandos diretos
 ├── config/
 │   ├── duel.json        # personalização do duelo (nomes, cores, palavras, meta)
-│   └── pipa.json        # personalização da arena (teto de pipas, cortes, ...)
+│   ├── pipa.json        # personalização da arena (teto de pipas, cortes, ...)
+│   └── carros.json      # catálogo da corrida (Gol, Uno, motos...)
+├── shared/
+│   ├── config.py        # leitura do .env
+│   ├── commands.py      # comandos de texto (usados pelo platformer)
+│   ├── gifts.py         # presente -> efeito (NITRO / OIL / TURBO)
+│   ├── sides.py         # lados e palavras do duelo
+│   ├── pipas.py         # regras da arena
+│   └── carros.py        # catálogo de veículos
 ├── deploy/
 │   ├── install.sh       # instalador Kali (venv + .env + systemd)
 │   ├── streamgames-server.service
@@ -264,12 +284,7 @@ local_stream_games_prototype/
 │       └── platformer.js
 ├── tiktok/bot.py        # live -> eventos (thread do TikTok + asyncio do servidor)
 ├── simulator/simulator.py
-├── shared/
-│   ├── config.py        # leitura do .env
-│   ├── commands.py      # comandos de texto (usados pelo platformer)
-│   ├── gifts.py         # presente -> efeito (NITRO / OIL / TURBO)
-│   ├── sides.py         # lados e palavras do duelo
-│   └── pipas.py         # regras da arena
+├── tests/               # suíte (python3 tests/run_all.py)
 ├── requirements.txt
 └── .env.example
 ```

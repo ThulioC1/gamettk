@@ -1,0 +1,22 @@
+{
+  "title": "Corrida na Live",
+  "cars": [
+    { "id": "gol",      "name": "Gol",      "type": "carro", "color": "#1f9d55", "dark": "#0f6b3a", "speed": 1.00, "keywords": ["gol", "golzinho"] },
+    { "id": "uno",      "name": "Uno",      "type": "carro", "color": "#e2e8f0", "dark": "#94a3b8", "speed": 0.94, "keywords": ["uno"] },
+    { "id": "chevette", "name": "Chevette", "type": "carro", "color": "#38bdf8", "dark": "#0369a1", "speed": 0.96, "keywords": ["chevette", "chevy"] },
+    { "id": "fusca",    "name": "Fusca",    "type": "carro", "color": "#ef4444", "dark": "#991b1b", "speed": 0.92, "keywords": ["fusca", "fuscinha"] },
+    { "id": "opala",    "name": "Opala",    "type": "carro", "color": "#a855f7", "dark": "#6b21a8", "speed": 0.98, "keywords": ["opala"] },
+    { "id": "kombi",    "name": "Kombi",    "type": "carro", "color": "#f59e0b", "dark": "#b45309", "speed": 0.90, "keywords": ["kombi", "van"] },
+    { "id": "celta",    "name": "Celta",    "type": "carro", "color": "#f8fafc", "dark": "#cbd5e1", "speed": 0.97, "keywords": ["celta"] },
+    { "id": "palio",    "name": "Palio",    "type": "carro", "color": "#22d3ee", "dark": "#0e7490", "speed": 1.02, "keywords": ["palio"] },
+    { "id": "yaris",    "name": "Yaris",    "type": "carro", "color": "#64748b", "dark": "#334155", "speed": 1.06, "keywords": ["yaris"] },
+    { "id": "corolla",  "name": "Corolla",  "type": "carro", "color": "#0ea5e9", "dark": "#075985", "speed": 1.08, "keywords": ["corolla"] },
+    { "id": "g8",       "name": "G8",       "type": "carro", "color": "#fbbf24", "dark": "#b45309", "speed": 1.15, "keywords": ["g8", "g 8"] },
+    { "id": "m160",     "name": "160",      "type": "moto",  "color": "#ef4444", "dark": "#991b1b", "speed": 1.04, "keywords": ["160", "moto 160"] },
+    { "id": "biz",      "name": "Biz",      "type": "moto",  "color": "#f8fafc", "dark": "#cbd5e1", "speed": 1.00, "keywords": ["biz", "honda biz"] },
+    { "id": "pcx",      "name": "PCX",      "type": "moto",  "color": "#3b82f6", "dark": "#1e3a8a", "speed": 1.06, "keywords": ["pcx"] },
+    { "id": "pop100",   "name": "Pop 100",  "type": "moto",  "color": "#22c55e", "dark": "#166534", "speed": 0.99, "keywords": ["pop 100", "pop100"] },
+    { "id": "s1000",    "name": "S1000",    "type": "moto",  "color": "#111827", "dark": "#000000", "speed": 1.10, "keywords": ["s1000", "s 1000"] },
+    { "id": "xre300",   "name": "XRE 300",  "type": "moto",  "color": "#84cc16", "dark": "#3f6212", "speed": 1.12, "keywords": ["xre 300", "xre300", "xre"] }
+  ]
+}

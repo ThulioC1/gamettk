@@ -44,7 +44,11 @@ def finish() -> None:
 
 @contextlib.contextmanager
 def run_server(*args: str, env_extra: Optional[dict] = None, wait: float = 2.5) -> Iterator[subprocess.Popen]:
-    """Sobe `server/server.py` com porta livre e garante o encerramento."""
+    """Sobe `server/server.py` com porta livre e garante o encerramento.
+
+    Espera a porta realmente aceitar conexao antes de devolver: dormir um tempo
+    fixo deixava a suite instavel quando o teste anterior ainda soltava a porta.
+    """
     env = {**dict(__import__("os").environ), "PORT": PORT, **(env_extra or {})}
     process = subprocess.Popen(
         [sys.executable, "server/server.py", *args],
@@ -54,13 +58,40 @@ def run_server(*args: str, env_extra: Optional[dict] = None, wait: float = 2.5) 
         stderr=subprocess.STDOUT,
         text=True,
     )
-    time.sleep(wait)
     try:
+        _espera_porta(int(PORT), wait)
         yield process
     finally:
         process.terminate()
         with contextlib.suppress(subprocess.TimeoutExpired):
             process.wait(timeout=6)
+        _espera_porta_livre(int(PORT), 5.0)
+
+
+def _porta_aberta(porta: int) -> bool:
+    with contextlib.suppress(OSError):
+        with socket.socket() as sock:
+            sock.settimeout(0.3)
+            return sock.connect_ex(("127.0.0.1", porta)) == 0
+    return False
+
+
+def _espera_porta(porta: int, limite: float) -> None:
+    """Aguarda o servidor responder (ou o limite estourar)."""
+    fim = time.monotonic() + limite
+    while time.monotonic() < fim:
+        if _porta_aberta(porta):
+            return
+        time.sleep(0.15)
+
+
+def _espera_porta_livre(porta: int, limite: float) -> None:
+    """Aguarda a porta ficar livre de novo (evita colisao com o proximo teste)."""
+    fim = time.monotonic() + limite
+    while time.monotonic() < fim:
+        if not _porta_aberta(porta):
+            return
+        time.sleep(0.2)
 
 
 def server_log(process: subprocess.Popen) -> str:

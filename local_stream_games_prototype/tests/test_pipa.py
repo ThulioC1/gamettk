@@ -121,7 +121,7 @@ async def ws_flow():
     import websockets
 
     result = {"welcome": None, "maxLoad": 0, "launches": 0, "cuts": 0, "states": 0, "alts": []}
-    async with websockets.connect(f"ws://127.0.0.1:{PORT}") as ws:
+    async with websockets.connect(f"ws://127.0.0.1:{PORT}/?game=pipa") as ws:
         hello = json.loads(await asyncio.wait_for(ws.recv(), 5))
         result["welcome"] = hello.get("game", {}).get("type")
 

@@ -28,6 +28,15 @@ DEFAULTS: Dict[str, str] = {
     "RESTART_DELAY_FRAMES": "420",
     "POINT_PER_COMMENT": "1",
     "CAR_MAX": "40",
+    # largada: contagem, grid e faixas
+    "COUNTDOWN_SECONDS": "10",
+    "GRID_COLUMNS": "8",
+    "GRID_COLUMN_GAP": "105",
+    "GRID_ROW_GAP": "190",
+    "CAR_LANES": "5",
+    "KMH_FACTOR": "40",
+    # Catalogo de veiculos (vazio = config/carros.json)
+    "CARROS_CONFIG": "",
     # Presentes -> efeitos (vazio = usar shared.gifts.DEFAULT_KEYWORDS)
     "GIFT_NITRO_KEYWORDS": "",
     "GIFT_OIL_KEYWORDS": "",

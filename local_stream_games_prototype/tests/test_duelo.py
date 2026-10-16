@@ -239,7 +239,7 @@ async def ws_flow():
 
     result = {"welcome": None, "sides": {}, "maxHeights": [0, 0], "events": [], "winner": False}
 
-    async with websockets.connect(f"ws://127.0.0.1:{PORT}") as ws:
+    async with websockets.connect(f"ws://127.0.0.1:{PORT}/?game=duelo") as ws:
 
         hello = json.loads(await asyncio.wait_for(ws.recv(), 5))
 

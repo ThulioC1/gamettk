@@ -126,8 +126,28 @@ curl -s localhost:8080/health
     flags de CLI e `help` não entram em suíte sozinhos: `tests/test_interativo.py`
     alimenta o simulador por stdin justamente para cobrir isso. Ao mexer em
     entrada do usuário, escreva o teste na mesma hora.
+13. **Renderer quebrado não aparece em teste de back-end.** O servidor pode
+    responder 200, o WebSocket mandar estado e a tela continuar vazia. Rode
+    `node tests/render_check.mjs` (ou `python3 tests/run_all.py`, que já chama)
+    sempre que mexer em `client/renderers/`. Cuidado com assinatura x chamada:
+    `drawPops(context, scope, delta)` chamada como `drawPops(context, view.delta)`
+    quebrou a Corrida inteira.
+14. **Argumento e posição da chamada precisam bater.** No Python, sigilo em
+    keyword; em JS, o nome importa igual. Erro desses só aparece em runtime.
 
-## 6. Ao adicionar um jogo (checklist)
+## 6. Multijogo (desde 2026-10-16)
+
+O servidor roda **todos** os jogos em paralelo; cada conexão assiste um:
+
+- `?game=<tipo>` na URL define o jogo inicial (é o que o OBS usa).
+- `{"type":"watch","game":"<tipo>"}` troca em tempo real, sem recarregar.
+- Eventos vão para o jogo que **quem enviou** está assistindo (o bot conecta com
+  `?game=` do `.env`, então a live dirige o jogo configurado).
+- Cada estado é transmitido só para quem assiste aquele jogo — por isso o
+  broadcast recebe o `game_type` como filtro.
+- `GameBase` continua igual; `--game` só define o **padrão** do launcher.
+
+## 7. Ao adicionar um jogo (checklist)
 
 - [ ] `server/games/meu_jogo.py` herdando `GameBase`; `type` único em minúsculas.
 - [ ] Registrar em `server/games/__init__.py` (`GAMES`).
@@ -140,7 +160,7 @@ curl -s localhost:8080/health
 - [ ] `python3 tests/run_all.py` verde.
 - [ ] Entrada no `CHANGELOG.md` e no `README.md` (tabela de jogos + regras).
 
-## 7. State of the art (não é verdade pra sempre)
+## 8. State of the art (não é verdade pra sempre)
 
 - WebSocket: `websockets>=14`, API `websockets.asyncio.server`.
 - Presente: campo de moedas é `gift.diamond_count`; nome é `gift.name`; streak
@@ -150,7 +170,7 @@ curl -s localhost:8080/health
 - Login no TikTok não é usado (só leitura). Não introduza sem o usuário pedir:
   risco de banimento da conta dele.
 
-## 8. Registro de mudanças
+## 9. Registro de mudanças
 
 `CHANGELOG.md` é append-only, mais recente no topo, com uma entrada por sessão.
 Leia as últimas antes de mexer: elas dizem o que já foi tentado e por que.

@@ -18,6 +18,15 @@ import urllib.request
 from server.games import GAMES, build  # noqa: E402
 from shared import gifts as gift_lib  # noqa: E402
 
+
+def larga(race) -> None:
+    """Avanca ate a largada (a corrida comeca com contagem regressiva)."""
+    for _ in range(3000):
+        race.update()
+        if race.phase != "countdown":
+            race.update()   # o frame do "VALENDO!" ainda nao moveu ninguem
+            return
+
 print("\n== A. classificacao de presentes ==")
 for name, expected in [
     ("Rose", gift_lib.NITRO), ("Rosa", gift_lib.NITRO), ("heart", gift_lib.NITRO),
@@ -53,11 +62,51 @@ race.handle_event({"event": "gift", "user": "ana", "gift": "Oil", "count": 1})
 check("oleio deixa mancha na pista", len(race.oils) == 1 and race.oils[0]["dist"] < 400)
 
 race.reset()
-check("reset limpa oleo e zera distancias", not race.oils and all(car.dist == 0 for car in race.cars))
+check("reset limpa oleo e zera distancias", not race.oils and all(car.dist < 0 for car in race.cars),
+      f"{[round(c.dist) for c in race.cars[:3]]}")
 check("reset preserva o elenco", len(race.cars) == 6)
+check("reset volta para a contagem", race.phase == "countdown" and race.snapshot()["countdown"] > 0,
+      f"{race.phase} {race.snapshot()['countdown']}s")
+larga(race)
+
+print("\n== B2. largada: contagem, grid, faixas e veiculos ==")
+race = build("corrida")
+race.handle_event({"event": "comment", "user": "ana", "text": "tenho um gol"})
+race.handle_event({"event": "comment", "user": "br", "text": "vou de moto biz"})
+race.handle_event({"event": "comment", "user": "carla", "text": "oi"})
+check("veiculo escolhido pela palavra", race.cars[0].vehicle_name == "Gol", race.cars[0].vehicle_name)
+check("moto escolhida pela palavra", race.cars[1].vehicle_name == "Biz", race.cars[1].vehicle_name)
+check("terceiro recebeu veiculo sorteado", race.cars[2].vehicle_name != "", race.cars[2].vehicle_name)
+check("catalogo no describe tem carros e motos",
+      len(race.describe()["catalog"]["cars"]) > 5 and len(race.describe()["catalog"]["motos"]) >= 3,
+      f"{len(race.describe()['catalog']['cars'])} carros / {len(race.describe()['catalog']['motos'])} motos")
+
+lanes = [car.lane for car in race.cars]
+check("carros ficam em faixas diferentes", len(set(lanes)) == len(lanes), str(lanes))
+check("grid de largada atras da linha", all(car.dist < 0 for car in race.cars),
+      str([round(c.dist) for c in race.cars]))
+check("todas as distâncias do grid sao distintas", len({car.dist for car in race.cars}) == len(race.cars))
+
+parado = [car.dist for car in race.cars]
+for _ in range(120):
+    race.update()
+check("ninguem anda durante a contagem", [car.dist for car in race.cars] == parado)
+check("contagem aparece no snapshot", race.snapshot()["countdown"] > 0, str(race.snapshot()["countdown"]))
+
+valendo = []
+for _ in range(3000):
+    if race.phase != "countdown":
+        break
+    valendo += [e for e in race.update() if e["kind"] == "go"]
+race.update()   # primeiro frame de corrida: velocidades sao calculadas aqui
+check("largou e avisou", bool(valendo), valendo[0]["message"] if valendo else "sem evento 'go'")
+check("agora todo mundo tem velocidade", any(car.kmh() > 0 for car in race.cars),
+      str([car.kmh() for car in race.cars]))
+check("km/h vai no snapshot", all("kmh" in car.to_dict() for car in race.cars))
 
 print("\n== C. Corrida: quem chega primeiro vence ==")
 race.reset()
+larga(race)
 race.cars[0].dist = race.snapshot()["trackLength"] - 1
 winner = []
 for _ in range(10):
@@ -68,15 +117,17 @@ check("vitoria detectada", bool(winner), winner[0]["message"] if winner else "ni
 check("colocacao do campeao = 1", race.cars[0].place == 1 and race.cars[0].finished_at is not None)
 
 restarted = []
-for _ in range(600):
+for _ in range(900):
     restarted = [e for e in race.update() if e["kind"] == "restart"]
     if restarted:
         break
 check("corrida reinicia sozinha", bool(restarted))
-check("todos voltam ao inicio", all(car.dist == 0 for car in race.cars))
+check("todos voltam ao grid", all(car.dist < 0 for car in race.cars) and race.phase == "countdown",
+      f"{race.phase} {[round(c.dist) for c in race.cars[:3]]}")
 
 print("\n== D. derrapagem no oleo ==")
 race.reset()
+larga(race)
 race.cars[0].dist = 100
 race.handle_event({"event": "gift", "user": "ana", "gift": "Oil"})
 race.cars[0].dist = race.oils[0]["dist"]

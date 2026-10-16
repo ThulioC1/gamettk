@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 import time
@@ -18,9 +19,20 @@ SUITE = [
     ("duelo", "test_duelo.py"),
     ("pipa", "test_pipa.py"),
     ("token", "test_token.py"),
+    ("multijogo", "test_multijogo.py"),
     ("interativo", "test_interativo.py"),
     ("simulador", "test_simulador.py"),
 ]
+
+
+def roda_render() -> int:
+    """Renderers sao JavaScript: rodam em node, se ele existir."""
+    node = shutil.which("node")
+    if not node:
+        print("\n== render (pulado: node nao instalado) ==")
+        return 0
+    print(f"\n{'=' * 60}\n== render\n{'=' * 60}")
+    return subprocess.run([node, str(TESTS_DIR / "render_check.mjs")]).returncode
 
 
 def main() -> int:
@@ -33,6 +45,9 @@ def main() -> int:
         started = time.monotonic()
         done = subprocess.run([sys.executable, str(TESTS_DIR / script)], cwd=str(TESTS_DIR))
         results.append((name, done.returncode, time.monotonic() - started))
+
+    if not wanted:
+        results.append(("render", roda_render(), 0.0))
 
     print(f"\n{'=' * 60}\nRESUMO\n{'=' * 60}")
     for name, code, seconds in results:

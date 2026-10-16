@@ -38,11 +38,12 @@
   let connected = false;
   let reconnectDelay = 500;
 
-  let gameType = params.get("game") || "corrida";
+let gameType = params.get("game") || "corrida";
   let meta = null;
   let state = null;
-  let renderer = null;   // { draw(ctx, state, meta, view), onEvent?(notice), controls }
+  let renderer = null;   // { draw(ctx, state, meta, view), onEvent?, onGameEvent? }
   let feedItems = [];
+  let availableGames = ["corrida"];
 
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -69,7 +70,9 @@
   // -------------------------------------------------------------- websocket
   function connect() {
     const protocol = location.protocol === "https:" ? "wss" : "ws";
-    socket = new WebSocket(`${protocol}://${location.host}`);
+    const wanted = params.get("game");
+    const query = wanted ? `/?game=${encodeURIComponent(wanted)}` : "/";
+    socket = new WebSocket(`${protocol}://${location.host}${query}`);
 
     socket.addEventListener("open", () => {
       connected = true;
@@ -100,31 +103,69 @@
   async function handle(payload) {
     switch (payload.type) {
       case "welcome":
-        meta = payload.game;
-        await loadRenderer(meta.type);
+        availableGames = payload.games || availableGames;
+        fillGameSelect(availableGames);
+        await loadGame(payload.game);
+        break;
+
+      case "game":   // troca em tempo real, sem recarregar
+        await loadGame(payload.game);
         break;
 
       case "state":
+        if (payload.game && payload.game !== gameType) break;  // estado de outro jogo
         state = payload.state;
         updateHud();
         break;
 
       case "event":
+        if (payload.game && payload.game !== gameType) break;
         onEvent(payload.event, payload.notices || []);
         break;
 
       case "game_event":
+        if (payload.game && payload.game !== gameType) break;
         onGameEvent(payload);
         break;
 
       case "status":
         el.viewers.textContent = `${payload.clients} tela(s)`;
         renderTiktokStatus(payload.sources && payload.sources.tiktok);
+        updateWatcherInfo(payload.games);
+        break;
+
+      case "error":
+        el.lastEvent.textContent = `erro: ${payload.message}`;
         break;
 
       default:
         break;
     }
+  }
+
+  function fillGameSelect(names) {
+    if (el.gameSelect.dataset.ready === "true") return;
+    el.gameSelect.innerHTML = names.map((name) => `<option value="${name}">${name}</option>`).join("");
+    el.gameSelect.dataset.ready = "true";
+  }
+
+  function updateWatcherInfo(list) {
+    if (!list) return;
+    const mine = list.find((item) => item.type === gameType);
+    el.viewers.textContent = `${mine ? mine.watchers : 0} assistindo este jogo`;
+  }
+
+  async function loadGame(desc) {
+    if (!desc) return;
+    const trocou = desc.type !== gameType;
+    meta = desc;
+    await loadRenderer(desc.type);
+    if (trocou) {
+      state = null;          // nao pinta o estado do jogo anterior
+      el.feed.innerHTML = "";
+      el.lastEvent.textContent = `assistindo ${desc.title}`;
+    }
+    el.gameSelect.value = desc.type;
   }
 
   async function loadRenderer(type) {
@@ -232,9 +273,14 @@
   });
 
   el.gameSelect.addEventListener("change", () => {
+    // troca de jogo sem recarregar a página; o URL fica como marcador
+    const wanted = el.gameSelect.value;
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "watch", game: wanted }));
+    }
     const url = new URL(location.href);
-    url.searchParams.set("game", el.gameSelect.value);
-    location.href = url.toString();
+    url.searchParams.set("game", wanted);
+    history.replaceState(null, "", url);
   });
 
   // ---------------------------------------------------------------- render
@@ -265,16 +311,8 @@
   }
 
   // ------------------------------------------------------------------ start
-  fetch("/games")
-    .then((response) => response.json())
-    .then((data) => {
-      el.gameSelect.innerHTML = (data.games || [])
-        .map((game) => `<option value="${game.type}">${game.title}</option>`)
-        .join("");
-      if (!params.get("game") && data.default) el.gameSelect.value = data.default;
-    })
-    .catch(() => { /* servidor pode estar subindo; o select fica vazio */ });
-
+  // O seletor e preenchido pelo `welcome` (lista de jogos que o servidor tem).
+  // O `?game=` da URL e respeitado: e' o que o OBS usa.
   requestAnimationFrame(loop);
   connect();
 })();
