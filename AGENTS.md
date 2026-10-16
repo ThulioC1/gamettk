@@ -140,6 +140,19 @@ curl -s localhost:8080/health
 15. **Script que reescreve arquivo apaga indentação.** Vários `IndentationError`
     vieram de patch por string.replace; depois de mexer, rode `py -c "import
     server.games.<modulo>"` antes da suíte. O erro aparece longe da causa.
+16. **Teste que fala com servidor velho passa errado.** Se a execução anterior
+    morreu antes do `terminate`, o processo órfão fica ouvindo na porta e o teste
+    mede o estado antigo (verde ou vermelho, sempre errado). `run_server()` agora
+    recusa subir em porta ocupada — se ele reclamar, mate o processo. No Windows:
+    `Get-CimInstance Win32_Process -Filter "Name like 'python%'"` e veja se há
+    `server/server.py` vivo.
+17. **`game_event` chega antes do primeiro `state`.** O `event` é empurrado na hora,
+    mas o snapshot só sai a cada `BROADCAST_EVERY_TICKS` (2). Cliente que faz
+    `break` ao ver o `winner` nunca leu um estado — foi o que zerou `torres subiram`
+    no `test_duelo` (`[0, 0]`).
+18. **`reset()` não zera mais a corrida.** A fase `esperando` resolve quem aciona a
+    largada; `reset()` devolve as pessoas para a plateia. Teste que contava carros na
+    pista depois do `reset()` tem que usar a fase, não o `reset()`.
 
 ## 6. Multijogo (desde 2026-10-16)
 
@@ -171,10 +184,27 @@ O servidor roda **todos** os jogos em paralelo; cada conexão assiste um:
 - WebSocket: `websockets>=14`, API `websockets.asyncio.server`.
 - Presente: campo de moedas é `gift.diamond_count`; nome é `gift.name`; streak
   deve ser ignorado enquanto `event.streaking` for verdadeiro.
-- Presente→efeito tem duas camadas: **nome** (categoria) e **moedas** (potência,
-  faixas em `shared/gifts.py::VALUE_TIERS`). Presente desconhecido = NITRO ×1.
+- Presente→efeito tem três camadas: **nome** (categoria), **moedas** (potência,
+  faixas em `shared/gifts.py::VALUE_TIERS`) e **catálogo** — quando a lib não manda
+  o valor, `shared/gifts.py::coins_conhecidas` procura o nome em
+  `config/presentes.json` (29 presentes, com emoji). Presente desconhecido = NITRO ×1.
 - Login no TikTok não é usado (só leitura). Não introduza sem o usuário pedir:
   risco de banimento da conta dele.
+
+## 8.1 Referência externa (desde 2026-10-16)
+
+`https://github.com/vamnguyen/tiktok-live-games.git` foi avaliado e **parcialmente
+adotado** (backoff+jitter, catálogo de presentes, fase `esperando`, `/debug`).
+O que **não** foi adotado, e por quê:
+
+- O jogo dele roda **no navegador** (`race-engine.js`); cada viewer simula o seu.
+  Aqui o servidor é dono do estado e o client só desenha — senão a tela do OBS e a
+  de quem assiste divergem, e ninguém consegue dirigir a partida.
+- `cors: "*"` e envio de evento sem token: qualquer visitor injeta evento falso.
+  Aqui é `GAME_TOKEN` (armadilha/regras acima).
+- Sem cooldown por viewer nem teto por minuto: 200 pessoas na live travam o jogo.
+- Zero testes. `tests/test_referencia.py` fixa o que foi pego de lá **e** o motivo
+  de não pegar o resto, para a próxima IA não "voltar" para a arquitetura antiga.
 
 ## 9. Registro de mudanças
 

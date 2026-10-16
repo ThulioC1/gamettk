@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))          # _harness
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # projeto
 
-from _harness import PORT, PROJECT, check, finish  # noqa: E402
+from _harness import PORT, PORT_B, PROJECT, check, finish  # noqa: E402
 
 import asyncio
 import json
@@ -28,11 +28,17 @@ def carro_de(race, user: str):
 
 
 def larga(race) -> None:
-    """Avanca ate a largada (a corrida comeca com contagem regressiva)."""
+    """Faz alguem chegar e avanca ate a corrida comecar.
+
+    A corrida nasce em "esperando": a contagem so comeca quando o primeiro
+    viewer manda evento, entao aqui disparamos um comentario.
+    """
+    if race.phase == "esperando":
+        race.handle_event({"event": "comment", "user": "teste", "text": "oi"})
     for _ in range(3000):
         race.update()
-        if race.phase != "countdown":
-            race.update()   # o frame do "VALENDO!" ainda nao moveu ninguem
+        if race.phase == "racing":
+            race.update()   # o primeiro frame de corrida calcula as velocidades
             return
 
 print("\n== A. classificacao de presentes ==")
@@ -69,15 +75,18 @@ check("comentar de novo nao cria carro", len([c for c in race.cars if not c.fixe
 race.handle_event({"event": "gift", "user": "ana", "gift": "Galaxy", "count": 3})
 check("presente turbo da impulso", carro_de(race, "ana").boost > 0 and carro_de(race, "ana").points > 0)
 
-race.cars[0].dist = 400
+ana = carro_de(race, "ana")
+ana.dist = 400
 race.handle_event({"event": "gift", "user": "ana", "gift": "Oil", "count": 1})
-check("oleio deixa mancha na pista", len(race.oils) == 1 and race.oils[0]["dist"] < 400)
+check("oleio deixa mancha na pista", len(race.oils) == 1 and race.oils[0]["dist"] < ana.dist,
+      f"{len(race.oils)} manchas, ana em {ana.dist:.0f}")
+
 
 race.reset()
 check("reset limpa oleo e zera distancias", not race.oils and all(car.dist < 0 for car in race.cars),
       f"{[round(c.dist) for c in race.cars[:3]]}")
 check("reset preserva o elenco", len([c for c in race.cars if not c.fixed]) == 6)
-check("reset volta para a contagem", race.phase == "countdown" and race.snapshot()["countdown"] > 0,
+check("reset volta para 'esperando'", race.phase == "esperando" and race.snapshot()["countdown"] == 0,
       f"{race.phase} {race.snapshot()['countdown']}s")
 larga(race)
 
@@ -137,17 +146,19 @@ for _ in range(900):
     if restarted:
         break
 check("corrida reinicia sozinha", bool(restarted))
-check("todos voltam ao grid", all(car.dist < 0 for car in race.cars) and race.phase == "countdown",
+check("todos voltam ao grid", all(car.dist < 0 for car in race.cars) and race.phase == "esperando",
       f"{race.phase} {[round(c.dist) for c in race.cars[:3]]}")
 
 print("\n== D. derrapagem no oleo ==")
 race.reset()
 larga(race)
-race.cars[0].dist = 100
+race.handle_event({"event": "comment", "user": "ana", "text": "oi"})
+ana = carro_de(race, "ana")
+ana.dist = 100
 race.handle_event({"event": "gift", "user": "ana", "gift": "Oil"})
-race.cars[0].dist = race.oils[0]["dist"]
+ana.dist = race.oils[0]["dist"]
 spill = [e for e in race.update() if e["kind"] == "spill"]
-check("carro derrapa e trava", bool(spill) and race.cars[0].spin_left > 0)
+check("carro derrapa e trava", bool(spill) and ana.spin_left > 0)
 check("mancha consumida no derrape", len(race.oils) == 0)
 
 print("\n== E. teto de carros ==")
@@ -161,7 +172,7 @@ race = build("corrida")
 larga(race)
 race.handle_event({"event": "comment", "user": "ana", "text": "oi"})
 race.cars = [car for car in race.cars if not car.fixed]  # mede so o carro da ana
-ana = race.cars[0]
+ana = carro_de(race, "ana")
 
 velocidades = []
 for curtidas in (1, 5, 20, 60):
@@ -248,7 +259,7 @@ check("platformer ignora evento de live", plat.handle_event({"event": "comment",
 check("games registrados", set(GAMES) == {"corrida", "duelo", "pipa", "platformer"}, str(sorted(GAMES)))
 
 print("\n== G. servidor: HTTP, /games e WebSocket ==")
-env = {**os.environ, "PORT": PORT}
+env = {**os.environ, "PORT": PORT_B}
 server = subprocess.Popen(
     [sys.executable, "server/server.py"], cwd=str(PROJECT), env=env,
     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
@@ -259,7 +270,7 @@ async def ws_flow():
     import websockets
 
     result = {"welcome": None, "events": [], "notices": [], "cars": 0, "oil": 0, "spill": False, "status": None}
-    async with websockets.connect(f"ws://127.0.0.1:{PORT}") as ws:
+    async with websockets.connect(f"ws://127.0.0.1:{PORT_B}") as ws:
         hello = json.loads(await asyncio.wait_for(ws.recv(), 5))
         result["welcome"] = hello.get("game", {}).get("type")
 
@@ -295,14 +306,14 @@ async def ws_flow():
     return result
 
 try:
-    with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/", timeout=5) as resp:
+    with urllib.request.urlopen(f"http://127.0.0.1:{PORT_B}/", timeout=5) as resp:
         html = resp.read().decode()
     check("HTTP serve o launcher", "<canvas" in html and "type=\"module\"" in html)
 except Exception as err:  # noqa: BLE001
     check("HTTP serve o launcher", False, str(err))
 
 try:
-    with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/games", timeout=5) as resp:
+    with urllib.request.urlopen(f"http://127.0.0.1:{PORT_B}/games", timeout=5) as resp:
         games = json.loads(resp.read().decode())
     check("/games lista os jogos", {g["type"] for g in games["games"]} == {"corrida", "duelo", "pipa", "platformer"}, str(sorted(g["type"] for g in games["games"])))
 except Exception as err:  # noqa: BLE001
@@ -310,14 +321,14 @@ except Exception as err:  # noqa: BLE001
 
 try:
     for asset in ("client.js", "style.css", "renderers/corrida.js", "renderers/platformer.js"):
-        with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/{asset}", timeout=5) as resp:
+        with urllib.request.urlopen(f"http://127.0.0.1:{PORT_B}/{asset}", timeout=5) as resp:
             body = resp.read().decode()
         check(f"servido: {asset}", len(body) > 50)
 except Exception as err:  # noqa: BLE001
     check("assets do client", False, str(err))
 
 try:
-    with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/../server/server.py", timeout=5) as resp:
+    with urllib.request.urlopen(f"http://127.0.0.1:{PORT_B}/../server/server.py", timeout=5) as resp:
         check("path traversal bloqueado", False, "vazou conteudo")
 except urllib.error.HTTPError as err:
     check("path traversal bloqueado", err.code == 404, f"HTTP {err.code}")

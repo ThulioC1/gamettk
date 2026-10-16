@@ -33,6 +33,17 @@ def free_port() -> str:
 
 PORT = free_port()
 
+
+def porta_para_livre(base: str = PORT) -> str:
+    """Segunda porta livre: um teste pode subir dois servidores (um zerado)."""
+    del base  # so para deixar explicito que a base nao importa
+    with contextlib.closing(socket.socket()) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return str(sock.getsockname()[1])
+
+
+PORT_B = porta_para_livre()
+
 failures: List[str] = []
 
 
@@ -50,13 +61,24 @@ def finish() -> None:
 
 
 @contextlib.contextmanager
-def run_server(*args: str, env_extra: Optional[dict] = None, wait: float = 2.5) -> Iterator[subprocess.Popen]:
+def run_server(*args: str, env_extra: Optional[dict] = None, wait: float = 2.5,
+               port: Optional[str] = None) -> Iterator[subprocess.Popen]:
     """Sobe `server/server.py` com porta livre e garante o encerramento.
 
     Espera a porta realmente aceitar conexao antes de devolver: dormir um tempo
     fixo deixava a suite instavel quando o teste anterior ainda soltava a porta.
+
+    Use `port=` para um servidor extra: assim uma parte do teste comeca com o
+    jogo zerado, sem depender do que a parte anterior deixou na memoria.
     """
-    env = {**dict(__import__("os").environ), "PORT": PORT, **(env_extra or {})}
+    alvo = str(port or PORT)
+    if _porta_aberta(int(alvo)):
+        raise RuntimeError(
+            f"porta {alvo} ja esta ocupada por outro processo: o teste falaria "
+            "falando com o servidor velho em vez do jogo zerado. Feche o processo "
+            "ou rode a suite de novo (a porta e sorteada a cada execucao)."
+        )
+    env = {**dict(__import__("os").environ), "PORT": alvo, **(env_extra or {})}
     process = subprocess.Popen(
         [sys.executable, "server/server.py", *args],
         cwd=str(PROJECT),
@@ -66,13 +88,13 @@ def run_server(*args: str, env_extra: Optional[dict] = None, wait: float = 2.5) 
         text=True,
     )
     try:
-        _espera_porta(int(PORT), wait)
+        _espera_porta(int(alvo), wait)
         yield process
     finally:
         process.terminate()
         with contextlib.suppress(subprocess.TimeoutExpired):
             process.wait(timeout=6)
-        _espera_porta_livre(int(PORT), 5.0)
+        _espera_porta_livre(int(alvo), 5.0)
 
 
 def _porta_aberta(porta: int) -> bool:
@@ -102,7 +124,15 @@ def _espera_porta_livre(porta: int, limite: float) -> None:
 
 
 def server_log(process: subprocess.Popen) -> str:
-    """Le a saida do servidor (use dentro do with, apos terminate)."""
-    with contextlib.suppress(subprocess.TimeoutExpired):
+    """Le a saida do servidor: encerra o processo e devolve o log.
+
+    Chamar dentro do `with run_server(...)`. O `finally` do run_server faz
+    terminate/wait de novo, o que e inofensivo em processo ja morto.
+    """
+    if process.poll() is None:
+        process.terminate()
+    try:
         return process.communicate(timeout=6)[0] or ""
-    return ""
+    except subprocess.TimeoutExpired:
+        process.kill()
+        return process.communicate()[0] or ""

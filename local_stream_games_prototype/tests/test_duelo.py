@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))          # _harness
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # projeto
 
-from _harness import PORT, PROJECT, check, finish  # noqa: E402
+from _harness import PORT, PORT_B, PROJECT, check, finish, run_server, server_log  # noqa: E402
 
 import asyncio
 import json
@@ -109,7 +109,7 @@ before_rose = game.towers[0].height
 
 game.handle_event({"event": "gift", "user": "ana", "gift": "Rose", "count": 2})
 
-check("presente pequeno Ã—2 levanta 4", game.towers[0].height - before_rose == 4,
+check("presente pequeno x2 levanta 4", game.towers[0].height - before_rose == 4,
 
       f"{before_rose} -> {game.towers[0].height}")
 
@@ -119,18 +119,14 @@ check("presente gigante e limitado (teto de 16)", game.towers[0].height - before
 
       f"altura={game.towers[0].height}")
 
-rival_before = game.towers[1].height
-
-game.handle_event({"event": "comment", "user": "br", "text": "flavio"})
-
-rival_before = game.towers[1].height
-
-out = game.handle_event({"event": "gift", "user": "ana", "gift": "Oil", "count": 1})
-
-check("presente de oleo derruba bloco do rival", game.towers[1].height < rival_before,
-
-      f"{rival_before} -> {game.towers[1].height}")
-
+# Jogo novo: acima a torre da ana ja venceu a partida, entao a sabotagem nao entraria
+sab = build("duelo")
+sab.handle_event({"event": "comment", "user": "ana", "text": "lula"})
+sab.handle_event({"event": "comment", "user": "br", "text": "flavio"})
+rival_before = sab.towers[1].height
+out = sab.handle_event({"event": "gift", "user": "ana", "gift": "Oil", "count": 1})
+check("presente de oleo derruba bloco do rival", sab.towers[1].height < rival_before,
+      f"{rival_before} -> {sab.towers[1].height}")
 check("aviso de sabotagem com quantidade", any(n.get("kind") == "sabotage" and n.get("blocks", 0) > 0 for n in out))
 
 print("\n== D. queda e desabamento ==")
@@ -225,114 +221,63 @@ check("duelo registrado no launcher", "duelo" in GAMES, str(sorted(GAMES)))
 
 print("\n== G. servidor servindo o duelo ==")
 
-env = {**os.environ, "PORT": PORT}
-
-server = subprocess.Popen([sys.executable, "server/server.py", "--game", "duelo"], cwd=str(PROJECT), env=env,
-
-                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-
-time.sleep(2.5)
 
 async def ws_flow():
-
     import websockets
 
     result = {"welcome": None, "sides": {}, "maxHeights": [0, 0], "events": [], "winner": False}
-
-    async with websockets.connect(f"ws://127.0.0.1:{PORT}/?game=duelo") as ws:
-
+    async with websockets.connect(f"ws://127.0.0.1:{PORT_B}/?game=duelo") as ws:
         hello = json.loads(await asyncio.wait_for(ws.recv(), 5))
-
         result["welcome"] = hello.get("game", {}).get("type")
-
         result["sides"] = {s["id"]: s["name"] for s in hello.get("game", {}).get("sides", [])}
 
         users = ["lula_1", "pt_2", "flavio_3", "bolso_4", "neutro_5", "pt_6"]
-
         for user in users:
-
             await ws.send(json.dumps({"type": "event", "event": "comment", "source": "tiktok",
-
-                                     "user": user, "text": "lula" if "pt" in user or "lula" in user else "flavio"}))
-
+                                      "user": user,
+                                      "text": "lula" if ("pt" in user or "lula" in user) else "flavio"}))
+        for _ in range(4):
             await ws.send(json.dumps({"type": "event", "event": "gift", "source": "tiktok",
-
-                                     "user": user, "gift": "Galaxy", "count": 2}))
+                                      "user": users[0], "gift": "Galaxy", "count": 2}))
 
         deadline = time.time() + 6
-
         while time.time() < deadline:
-
             try:
-
                 payload = json.loads(await asyncio.wait_for(ws.recv(), 3))
-
             except asyncio.TimeoutError:
-
                 break
-
             if payload.get("type") == "state":
-
                 heights = [t["height"] for t in payload["state"]["towers"]]
-
                 result["maxHeights"] = [max(result["maxHeights"][i], heights[i]) for i in (0, 1)]
-
             elif payload.get("type") == "game_event":
-
                 result["events"].append(payload.get("kind"))
-
                 if payload.get("kind") == "winner":
-
                     result["winner"] = True
-
-                    break
-
     return result
 
-try:
 
-    with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/renderers/duelo.js", timeout=5) as resp:
-
-        check("renderer do duelo servido", len(resp.read()) > 1000)
-
-except Exception as err:  # noqa: BLE001
-
-    check("renderer do duelo servido", False, str(err))
-
-try:
-
-    result = asyncio.run(ws_flow())
-
-    check("welcome diz que e o duelo", result["welcome"] == "duelo", str(result["welcome"]))
-
-    check("lados personalizados chegam ao client", result["sides"] == {"esquerda": "Lula", "direita": "Fl\u00e1vio Bolsonaro"},
-
-          json.dumps(result["sides"], ensure_ascii=False))
-
-    check("torres subiram com os eventos", max(result["maxHeights"]) >= 3, str(result["maxHeights"]))
-
-except Exception as err:  # noqa: BLE001
-
-    check("fluxo WebSocket do duelo", False, repr(err))
-
-finally:
-
-    server.terminate()
+with run_server("--game", "duelo", port=PORT_B) as server:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{PORT_B}/renderers/duelo.js", timeout=5) as resp:
+            check("renderer do duelo servido", len(resp.read()) > 1000)
+    except Exception as err:  # noqa: BLE001
+        check("renderer do duelo servido", False, str(err))
 
     try:
+        result = asyncio.run(ws_flow())
+        check("welcome diz que e o duelo", result["welcome"] == "duelo", str(result["welcome"]))
+        check("lados personalizados chegam ao client",
+              result["sides"] == {"esquerda": "Lula", "direita": "Fl\u00e1vio Bolsonaro"},
+              json.dumps(result["sides"], ensure_ascii=False))
+        check("torres subiram com os eventos", max(result["maxHeights"]) >= 3, str(result["maxHeights"]))
+    except Exception as err:  # noqa: BLE001
+        check("fluxo WebSocket do duelo", False, repr(err))
 
-        log = server.communicate(timeout=6)[0]
+    log = server_log(server)
 
-    except subprocess.TimeoutExpired:
-
-        server.kill()
-
-        log = server.communicate()[0]
-
-errors = [line for line in (log or "").splitlines() if "ERROR" in line or "Traceback" in line]
-
+erros = [l for l in log.splitlines() if "ERROR" in l or "Traceback" in l]
+check("servidor sem erro", not erros, "; ".join(erros[:2]))
 print("\n--- ultimas linhas do servidor ---")
-
-print("\n".join((log or "").splitlines()[-6:]))
+print("\n".join(log.splitlines()[-5:]))
 
 finish()

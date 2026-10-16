@@ -5,6 +5,53 @@ Detalhe de arquitetura e regras de bolso: `AGENTS.md`.
 
 ---
 
+## 2026-10-16 — avaliação do repo `vamnguyen/tiktok-live-games` + 4 melhorias adotadas
+
+**O quê**
+- O usuário mandou avaliar `https://github.com/vamnguyen/tiktok-live-games.git`.
+  **Não migramos**: lá o jogo roda no navegador (`race-engine.js`) e o Node só
+  repassa estado por socket.io, sem `GAME_TOKEN`, sem rate limit por viewer e sem
+  nenhum teste. Adotamos só as quatro peças boas:
+  1. **Backoff exponencial com jitter** — `shared/reconnect.py::PoliticaReconexao`,
+     usada em `tiktok/bot.py` (`base_s=5`, teto 120 s, 300 s de espera máxima).
+  2. **Catálogo de presentes por nome** — `config/presentes.json` (29 presentes,
+     moedas e emoji) + `shared/gifts.py` com `coins_conhecidas`/`emoji_de`. Antes,
+     presente sem valor da lib virava ×1; agora `Universo TikTok` = 44999 = x8.
+  3. **Fase `esperando`** na Corrida: nada se move até o primeiro viewer, e o
+     snapshot ganha `waitingFor`. Tela parada com live vazia em vez de grid parado.
+  4. **`/debug`** — página que mostra os eventos crus da live, para separar
+     "o bot não mandou" de "o jogo ignorou".
+- **Desempate justo**: a vitória passou a considerar `entry_dist` (quem estava mais
+  perto da chegada), não a ordem da lista; `place` do vencedor = 1.
+- Bug **real** corrigido no bot: `PoliticaReconexao` era criada dentro do `while`,
+  então o backoff nunca passava da primeira tentativa; e `espera` ficava indefinida
+  no `except` genérico (`NameError`).
+
+**Armadilhas novas encontradas na própria suite**
+- `tests/test_duelo.py` media `0 x 0`: o laço fazia `break` ao receber o
+  `game_event` de vitória, que chega **antes** do primeiro snapshot (estados saem a
+  todo 2 ticks). Cliente que sai na vitória nunca vê a torre.
+- `tests/_harness.py::run_server` agora **recusa** subir se a porta já estiver
+  ocupada. Quatro servidores órfãos de execuções quebradas ficaram ouvindo e um
+  teste "verde" mediu o estado velho; `server_log()` também passou a encerrar o
+  processo de verdade (antes `communicate()` estourava o timeout e devolvia vazio).
+- `tests/test_duelo.py` e `test_corrida.py` passaram a usar uma segunda porta
+  (`PORT_B`) para o teste de servidor, porque a fase `esperando` deixou de zerar o
+  jogo no `reset()`.
+
+**Arquivos tocados**
+`shared/reconnect.py`, `shared/gifts.py`, `config/presentes.json`,
+`server/server.py`, `server/games/corrida.py`, `client/renderers/corrida.js`,
+`client/debug.html`, `client/debug.js`, `tiktok/bot.py`, `.env.example`,
+`tests/{_harness,test_corrida,test_duelo,test_config,test_gifts,test_referencia,run_all}.py`,
+`README.md`, `AGENTS.md`.
+
+**Como verifiquei**
+`python3 tests/run_all.py` → 11 suítes verdes (entrou `referencia`, com os testes
+de `/debug`, do catálogo, da reconexão, da fase `esperando` e do desempate).
+
+---
+
 ## 2026-10-16 — nome do dono acima do carro
 
 **O quê**

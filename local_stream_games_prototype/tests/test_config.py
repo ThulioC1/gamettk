@@ -27,6 +27,7 @@ arquivos = [
     "shared/sides.py",
     "shared/pipas.py",
     "shared/carros.py",
+    "shared/reconnect.py",
     "tiktok/bot.py",
     "simulator/simulator.py",
 ]
@@ -47,8 +48,13 @@ check("nenhuma chave lida fora do DEFAULTS", not faltando,
 print("\n== B. chaves do DEFAULTS nao sao havidas ==")
 # as keywords de presente sao lidas por f-string (GIFT_{efeito}_KEYWORDS)
 texto_gifts = (PROJECT / "shared/gifts.py").read_text(encoding="utf-8")
+# as keywords de presente sao lidas por f-string (GIFT_{efeito}_KEYWORDS) e as de
+# reconexao tambem, entao sao detectadas por prefixo no codigo
+texto_reconnect = (PROJECT / "shared/reconnect.py").read_text(encoding="utf-8")
 dinamicas = {f"GIFT_{efeito}_KEYWORDS" for efeito in ("NITRO", "OIL", "TURBO")
-             if f'GIFT_{{effect}}_KEYWORDS' in texto_gifts or f"GIFT_{efeito}_KEYWORDS" in texto_gifts}
+             if 'GIFT_{efeito}_KEYWORDS' in texto_gifts or f"GIFT_{efeito}_KEYWORDS" in texto_gifts}
+if "RECONNECT_" in texto_reconnect:
+    dinamicas |= {chave for chave in DEFAULTS if chave.startswith("RECONNECT_")}
 codigo = "\n".join((PROJECT / arq).read_text(encoding="utf-8")
                    for arq in arquivos if (PROJECT / arq).is_file())
 sem_uso = sorted(chave for chave in DEFAULTS

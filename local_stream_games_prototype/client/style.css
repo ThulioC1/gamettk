@@ -205,3 +205,47 @@ summary { cursor: pointer; color: var(--text); }
 details p { line-height: 1.5; }
 code { background: #0b2036; padding: 1px 5px; border-radius: 4px; color: var(--cyan); }
 .hint { color: var(--gold); }
+
+/* ------------------------------------------------------------------ debug */
+.debug .painel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 12px;
+}
+
+.debug h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: 1px; color: var(--cyan); }
+.debug h2 small { color: var(--muted); font-weight: 400; letter-spacing: 0; }
+.dica { color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+.fontes { display: flex; gap: 10px; flex-wrap: wrap; }
+.fonte {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  min-width: 180px;
+}
+.fonte span { display: block; color: var(--muted); }
+.fonte.on { border-color: var(--pink); box-shadow: 0 0 12px rgba(236, 72, 153, .25); }
+
+.presentes { display: flex; gap: 6px; flex-wrap: wrap; }
+.presentes code { font-size: 12px; }
+.presentes b { color: var(--gold); }
+
+.eventos { max-height: 46vh; overflow: auto; font-size: 12px; }
+.ev {
+  display: grid;
+  grid-template-columns: 90px 1fr 90px;
+  gap: 8px;
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(148, 163, 184, .08);
+}
+.ev b { color: var(--muted); }
+.ev span { color: var(--text); overflow-wrap: anywhere; }
+.ev i { color: var(--muted); font-style: normal; text-align: right; }
+.ev-presente b { color: var(--gold); }
+.ev-comment b { color: var(--cyan); }
+.ev-like b { color: var(--pink); }
+.ev-jogo b { color: #facc15; }

@@ -1,0 +1,42 @@
+{
+  "title": "Presentes da live",
+  "tiers": [
+    { "id": "comum",    "maxCoins": 19,    "multiplier": 1 },
+    { "id": "medio",    "maxCoins": 199,   "multiplier": 2 },
+    { "id": "grande",   "maxCoins": 999,   "multiplier": 3 },
+    { "id": "lenda",    "maxCoins": 4999,  "multiplier": 4 },
+    { "id": "lenda+",   "maxCoins": 14999, "multiplier": 6 },
+    { "id": "lendario", "maxCoins": null,  "multiplier": 8 }
+  ],
+  "gifts": [
+    { "name": "Rosa",              "coins": 1,     "emoji": "🌹", "effect": "NITRO", "aliases": ["rose", "roses"] },
+    { "name": "GG",                "coins": 1,     "emoji": "🫶", "effect": "NITRO", "aliases": [] },
+    { "name": "Casquinha de Sorvete", "coins": 1,  "emoji": "🍦", "effect": "NITRO", "aliases": ["sorvete", "ice cream cone"] },
+    { "name": "Panda",             "coins": 5,     "emoji": "🐼", "effect": "NITRO", "aliases": [] },
+    { "name": "Perfume",           "coins": 20,    "emoji": "🧴", "effect": "NITRO", "aliases": [] },
+    { "name": "Eu Te Amo",         "coins": 49,    "emoji": "💖", "effect": "NITRO", "aliases": ["te amo", "love you"] },
+    { "name": "Confete",           "coins": 100,   "emoji": "🎉", "effect": "NITRO", "aliases": ["confetti"] },
+    { "name": "Óculos de Sol",     "coins": 199,   "emoji": "🕶️", "effect": "NITRO", "aliases": ["oculos", "sunglasses"] },
+    { "name": "Chuva de Dinheiro",  "coins": 500,   "emoji": "🛢️", "effect": "OIL",   "aliases": ["money gun", "money rain"] },
+    { "name": "Bola de Espelhos",   "coins": 1000,  "emoji": "🔮", "effect": "TURBO", "aliases": ["galaxia", "galaxy"] },
+    { "name": "Sereia",            "coins": 2988,  "emoji": "🧜‍♀️", "effect": "TURBO", "aliases": ["mermaid"] },
+    { "name": "Avião",             "coins": 6000,  "emoji": "✈️", "effect": "TURBO", "aliases": ["aviao", "sports car"] },
+    { "name": "Planeta",            "coins": 15000, "emoji": "🪐", "effect": "TURBO", "aliases": [] },
+    { "name": "Voo Diamante",      "coins": 18000, "emoji": "💎", "effect": "TURBO", "aliases": ["diamond", "voo de diamante"] },
+    { "name": "Leão",              "coins": 29999, "emoji": "🦁", "effect": "TURBO", "aliases": ["leao", "mini leao", "phoenix"] },
+    { "name": "Universo TikTok",   "coins": 44999, "emoji": "🌌", "effect": "TURBO", "aliases": ["universo", "tiktok universe", "interstellar"] },
+    { "name": "TikTok",            "coins": 1,     "emoji": "🎵", "effect": "TURBO", "aliases": [] },
+    { "name": "Super GG",          "coins": 100,   "emoji": "🫡", "effect": "NITRO", "aliases": ["supergg"] },
+    { "name": "Buquê",             "coins": 100,   "emoji": "💐", "effect": "NITRO", "aliases": ["bouquet"] },
+    { "name": "Candy",             "coins": 199,   "emoji": "🍬", "effect": "NITRO", "aliases": ["doce"] },
+    { "name": "Love Balloon",      "coins": 500,   "emoji": "🎈", "effect": "OIL",   "aliases": ["baloes de amor"] },
+    { "name": "Swan",              "coins": 699,   "emoji": "🦢", "effect": "OIL",   "aliases": ["cisco"] },
+    { "name": "Train",             "coins": 899,   "emoji": "🚂", "effect": "OIL",   "aliases": ["trem"] },
+    { "name": "Party Laser",       "coins": 1300,  "emoji": "🎯", "effect": "TURBO", "aliases": ["laser"] },
+    { "name": "Private Jet",       "coins": 4888,  "emoji": "🛩️", "effect": "TURBO", "aliases": ["jato"] },
+    { "name": "Flying Jets",       "coins": 5000,  "emoji": "🛩️", "effect": "TURBO", "aliases": [] },
+    { "name": "Fireworks",         "coins": 1088,  "emoji": "🎆", "effect": "TURBO", "aliases": ["fogo de artificio"] },
+    { "name": "Meteor Shower",     "coins": 3000,  "emoji": "☄️", "effect": "TURBO", "aliases": ["chuva de meteoros"] },
+    { "name": "Superstar",         "coins": 12000, "emoji": "⭐", "effect": "TURBO", "aliases": [] }
+  ]
+}

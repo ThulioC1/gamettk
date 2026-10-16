@@ -305,6 +305,17 @@ async def process_request(connection: ServerConnection, request: Any) -> Any:
                 bool(expected) and secrets.compare_digest(_token_from_path(path), expected))
         return None
 
+    # pagina de debug: mostra os eventos crus da live (ajuda a diagnosticar
+    # se o problema esta no bot ou no jogo)
+    if base_path == "/debug":
+        pagina = CLIENT_DIR / "debug.html"
+        if pagina.is_file():
+            response = connection.respond(HTTPStatus.OK, pagina.read_text(encoding="utf-8"))
+            del response.headers["Content-Type"]
+            response.headers["Content-Type"] = "text/html; charset=utf-8"
+            return response
+        return connection.respond(HTTPStatus.NOT_FOUND, "pagina de debug nao encontrada")
+
     if base_path == "/health":
         return connection.respond(HTTPStatus.OK, json.dumps({
             "ok": True,

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Debug da live - Stream Games</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="wrap debug">
+    <header class="topbar">
+      <div class="brand">
+        <h1>DEBUG DA LIVE</h1>
+        <p id="resumo">conectando…</p>
+      </div>
+      <div class="topbar-right">
+        <div class="status" id="connection">…</div>
+        <button class="btn ghost" id="limpar">limpar</button>
+      </div>
+    </header>
+
+    <section class="painel">
+      <h2>Fontes</h2>
+      <div id="fontes" class="fontes">—</div>
+      <p class="dica">
+        Conecte o bot com <code>python3 tiktok/bot.py --username fulano</code> e abra esta
+        página. Ela mostra os eventos crus que chegam da live: se aparecer
+        <b>comentário</b> aqui, o problema é no jogo; se nada aparecer, o problema é no bot.
+      </p>
+    </section>
+
+    <section class="painel">
+      <h2>Presentes vistos <small>(nome exato como o TikTok envia)</small></h2>
+      <div id="presentes" class="presentes">nenhum ainda</div>
+      <p class="dica">
+        Copie o nome que aparecer aqui para <code>config/presentes.json</code> — é assim que
+        se descobre o nome de presente no seu país.
+      </p>
+    </section>
+
+    <section class="painel">
+      <h2>Eventos</h2>
+      <div id="eventos" class="eventos"></div>
+    </section>
+  </main>
+
+  <script type="module" src="debug.js"></script>
+</body>
+</html>

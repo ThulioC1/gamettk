@@ -60,6 +60,7 @@ OIL_LIFETIME = 1200
 KMH_FACTOR = config.get_int("KMH_FACTOR", minimum=1)
 KMH_MAX = config.get_int("KMH_MAX", minimum=60)  # teto do mostrador
 
+PHASE_WAITING = "esperando"
 PHASE_COUNTDOWN = "countdown"
 PHASE_RACING = "racing"
 PHASE_OVER = "over"
@@ -82,7 +83,7 @@ class Car:
 
     __slots__ = ("user", "name", "number", "lane", "color", "dark", "vehicle", "vehicle_name",
                  "is_moto", "dist", "speed", "boost", "boost_left", "like_boost", "spin_left",
-                 "points", "likes", "fixed", "finished_at", "place")
+                 "points", "likes", "fixed", "finished_at", "entry_dist", "place")
 
     def __init__(self, user: str, number: int, lane: int, veiculo: carro_lib.Veiculo,
                  fixed: bool = False) -> None:
@@ -105,6 +106,7 @@ class Car:
         self.likes = 0
         self.fixed = fixed            # carro de casa: nunca sai da pista
         self.finished_at: Optional[int] = None
+        self.entry_dist = 0.0   # de onde o carro partiu no frame da chegada
         self.place = 0
 
     def kmh(self) -> int:
@@ -151,8 +153,9 @@ class Corrida(GameBase):
         self.restart_in = 0
         self.winner: Optional[Dict[str, Any]] = None
         self.last_joiner: Optional[str] = None
-        self.phase = PHASE_COUNTDOWN
+        self.phase = PHASE_WAITING
         self.countdown = COUNTDOWN_SECONDS * 60
+        self.pending: Optional[Dict[str, Any]] = None
         self.random = random.Random(1234)  # partida reproduzivel em teste
         self._cria_carros_de_casa()
 
@@ -174,8 +177,9 @@ class Corrida(GameBase):
         self.restart_in = 0
         self.winner = None
         self.last_joiner = None
-        self.phase = PHASE_COUNTDOWN
+        self.phase = PHASE_WAITING
         self.countdown = COUNTDOWN_SECONDS * 60
+        self.pending = None
         for index, car in enumerate(self.cars):
             car.dist = -self._grid_offset(index)
             car.speed = 0.0
@@ -194,11 +198,21 @@ class Corrida(GameBase):
         column = index % GRID_COLUMNS
         return row * GRID_ROW_GAP + column * GRID_COLUMN_GAP + 30.0
 
+    def _dispara_largada(self) -> None:
+        """O primeiro viewer acorda a corrida: antes disso fica em 'esperando'."""
+        if self.phase == PHASE_WAITING:
+            self.phase = PHASE_COUNTDOWN
+            self.countdown = COUNTDOWN_SECONDS * 60
+            self.pending = {"kind": "countdown", "message": "CHEGOU ALGUÉM! LARGADA EM 00:10"}
+
     # ----------------------------------------------------------------- entradas
     def handle_event(self, event: Dict[str, Any]) -> List[Dict[str, Any]]:
         kind = event.get("event")
         user = str(event.get("user") or "anon")[:24]
         notices: List[Dict[str, Any]] = []
+
+        if kind in {"comment", "gift", "follow", "share"}:
+            self._dispara_largada()
 
         if kind == "comment":
             notices.extend(self._on_comment(user, str(event.get("text", ""))[:60]))
@@ -292,7 +306,7 @@ class Corrida(GameBase):
 
         notice = {
             "kind": "gift", "user": user, "gift": gift_name, "effect": effect,
-            "coins": gift_info["coins"], "tier": gift_info["tier"],
+            "emoji": gift_info["emoji"], "coins": gift_info["coins"], "tier": gift_info["tier"],
             "message": f"{gift_info['label']} ({gift_info['tier']})",
         }
 
@@ -305,7 +319,8 @@ class Corrida(GameBase):
                     "life": OIL_LIFETIME,
                 })
             notice["effect_text"] = f"{manchas} mancha(s) de oleo na pista"
-            notice["message"] = f"OLEO ({gift_info['tier']}) -> {manchas} manchas na pista"
+            notice["message"] = (f"{gift_info['emoji']} OLEO ({gift_info['tier']})"
+                                 f" -> {manchas} manchas na pista")
             return [notice]
 
         base_boost = TURBO_BOOST if effect == gift_lib.TURBO else NITRO_BOOST
@@ -326,7 +341,8 @@ class Corrida(GameBase):
             return [notice]
 
         notice["effect_text"] = f"+{ganho} km/h"
-        notice["message"] = (f"{gift_info['label']} ({gift_info['tier']}) -> +{ganho} km/h{extra}"
+        notice["message"] = (f"{gift_info['emoji']} {gift_info['label']} ({gift_info['tier']})"
+                             f" -> +{ganho} km/h{extra}"
                              f" (ponta: {_kmh(car.speed + car.like_boost + car.boost)} km/h)")
         return [notice]
 
@@ -358,6 +374,9 @@ class Corrida(GameBase):
         events: List[Dict[str, Any]] = []
 
         # ---- largada: contagem regressiva, ninguem anda
+        if self.phase == PHASE_WAITING:
+            return events + self._drain()
+
         if self.phase == PHASE_COUNTDOWN:
             if self.cars:
                 self.countdown -= 1
@@ -365,14 +384,14 @@ class Corrida(GameBase):
                     self.phase = PHASE_RACING
                     self.countdown = 0
                     events.append({"kind": "go", "message": "VALENDO!"})
-            return events
+            return events + self._drain()
 
         if self.phase == PHASE_OVER:
             self.restart_in -= 1
             if self.restart_in <= 0:
                 self.reset()
                 events.append({"kind": "restart", "message": "NOVA CORRIDA!"})
-            return events
+            return events + self._drain()
 
         # ---- corrida
         for oil in self.oils:
@@ -415,10 +434,18 @@ class Corrida(GameBase):
 
             if car.dist >= TRACK_LENGTH and car.finished_at is None:
                 car.finished_at = self.tick
+                car.entry_dist = previous      # de onde ele saiu no frame
                 finished.append(car)
 
         if finished:
-            champion = min(finished, key=lambda car: car.finished_at or 0)
+            # Desempate: no mesmo frame vale quem estava MAIS A FRENTE ao entrar
+            # no frame (entry_dist). Pela ordem da lista o vencedor seria sempre o
+            # primeiro carro criado - hoje, os dois carros de casa.
+            champion = min(finished, key=lambda car: (car.finished_at or 0, -car.entry_dist, -car.speed))
+            for colocacao, car in enumerate(sorted(
+                    finished, key=lambda car: (car.finished_at or 0, -car.entry_dist, -car.speed)), start=1):
+                car.place = colocacao
+
             self.phase = PHASE_OVER
             self.winner = {
                 "user": champion.name,
@@ -433,7 +460,14 @@ class Corrida(GameBase):
             events.append({"kind": "winner", "user": champion.name, "side": None,
                            "message": f"{champion.name.upper()} VENCEU COM {champion.vehicle_name.upper()}!"})
 
-        return events
+        return events + self._drain()
+
+    def _drain(self) -> List[Dict[str, Any]]:
+        """Entrega (e limpa) o evento acumulado desde o ultimo frame."""
+        if not self.pending:
+            return []
+        evento, self.pending = self.pending, None
+        return [evento]
 
     # -------------------------------------------------------------- serializacao
     def snapshot(self) -> Dict[str, Any]:
@@ -445,6 +479,7 @@ class Corrida(GameBase):
             "tick": self.tick,
             "phase": self.phase,
             "countdown": max(0, -(-self.countdown // 60)) if self.phase == PHASE_COUNTDOWN else 0,
+            "waitingFor": self.phase == PHASE_WAITING,
             "trackLength": TRACK_LENGTH,
             "lanes": LANES,
             "cars": [car.to_dict() for car in ordered],

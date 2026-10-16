@@ -50,6 +50,12 @@ DEFAULTS: Dict[str, str] = {
     "RIVAL_SPEED": "88",
     # Catalogo de veiculos (vazio = config/carros.json)
     "CARROS_CONFIG": "",
+    # Catalogo de presentes (vazio = config/presentes.json)
+    "PRESENTES_CONFIG": "",
+    # Politica de reconexao do bot
+    "RECONNECT_BASE_S": "2",
+    "RECONNECT_MAX_S": "60",
+    "RECONNECT_ATTEMPTS": "8",
     # Presentes -> efeitos (vazio = usar shared.gifts.DEFAULT_KEYWORDS)
     "GIFT_NITRO_KEYWORDS": "",
     "GIFT_OIL_KEYWORDS": "",

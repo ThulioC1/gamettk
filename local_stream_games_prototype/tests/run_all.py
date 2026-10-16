@@ -23,6 +23,7 @@ SUITE = [
     ("multijogo", "test_multijogo.py"),
     ("interativo", "test_interativo.py"),
     ("simulador", "test_simulador.py"),
+    ("referencia", "test_referencia.py"),
 ]
 
 

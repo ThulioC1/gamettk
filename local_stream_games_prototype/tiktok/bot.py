@@ -26,11 +26,11 @@ import websockets  # type: ignore
 
 from shared import config  # noqa: E402
 from shared import gifts as gift_lib  # noqa: E402
+from shared.reconnect import politica_do_env  # noqa: E402
 
 LOGGER = logging.getLogger("tiktok-bot")
 
 SOURCE = "tiktok"
-RECONNECT_DELAY = 3.0
 
 #: fila entre a thread do TikTok e o laco asyncio
 inbox: "queue.Queue[Dict[str, Any]]" = queue.Queue()
@@ -174,22 +174,33 @@ def run_tiktok_thread(username: str) -> None:
     """Thread que mantem a conexao com a live (a lib bloqueia aqui)."""
     from TikTokLive.client.errors import UserNotFoundError, UserOfflineError
 
+    from shared.reconnect import PoliticaReconexao
+
+    # A politica fica FORA do laco: recriada a cada iteracao ela nunca passaria
+    # de uma tentativa e o backoff seria sempre o mesmo 5 s (armadilha nova).
+    politica = PoliticaReconexao(base_s=5.0, teto_s=120.0, tentativas=0)  # 0 = nao desiste
+    espera = 5.0
+
     while True:
         client = build_tiktok_client(username)
         try:
             client.run()  # bloqueia ate a live acabar
-            LOGGER.info("conexao com a live encerrada; tentando dnv em 5s")
+            LOGGER.info("conexao com a live encerrada")
+            espera = 5.0
         except UserOfflineError:
-            LOGGER.warning("@%s nao esta ao vivo agora. tentando dnv em 30s", username)
-            time.sleep(30)
+            LOGGER.warning("@%s nao esta ao vivo agora", username)
+            espera = 30.0
         except UserNotFoundError:
             LOGGER.error("@%s nao existe ou nao tem live. verifique o username", username)
             return
         except Exception:  # noqa: BLE001
             LOGGER.exception("falha inesperada na conexao com o TikTok")
-            time.sleep(15)
-        else:
-            time.sleep(5)
+
+        # espera crescente com jitter em vez de dormir sempre os mesmos 15 s
+        politica.registra_falha()
+        espera = max(espera, politica.proxima_espera())
+        LOGGER.info("tentando de novo em %.0fs (%s)", espera, politica.resumo())
+        time.sleep(min(espera, 300.0))
 
 
 # ------------------------------------------------------------------ game link
@@ -252,17 +263,25 @@ async def run_game_link(username: str) -> None:
     base = f"ws://127.0.0.1:{config.get_int('PORT', minimum=1)}"
     token = config.get_str("GAME_TOKEN")
     url = f"{base}/?token={token}" if token else base
+    politica = politica_do_env()
 
     while True:
         try:
             async with websockets.connect(url, max_size=1 << 20) as websocket:
                 LOGGER.info("ligado ao servidor do jogo em %s", base)
+                politica.registra_sucesso()
                 await pump_events(websocket, username)
         except asyncio.CancelledError:
             raise
         except (OSError, websockets.exceptions.WebSocketException) as err:
-            LOGGER.error("conexao com o servidor do jogo falhou (%s). tentando dnv em %.0fs", err, RECONNECT_DELAY)
-            await asyncio.sleep(RECONNECT_DELAY)
+            politica.registra_falha()
+            espera = politica.proxima_espera()
+            LOGGER.error("conexao com o servidor do jogo falhou (%s). "
+                         "tentando dnv em %.0fs (%s)", err, espera, politica.resumo())
+            await asyncio.sleep(espera)
+        except Exception:  # noqa: BLE001 - nunca morre por causa de uma falha solta
+            LOGGER.exception("erro inesperado no laco do servidor do jogo")
+            await asyncio.sleep(5.0)
 
 
 # ----------------------------------------------------------------------- main

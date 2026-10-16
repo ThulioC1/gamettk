@@ -153,7 +153,22 @@ python3 tests/test_interativo.py  # console do simulador (envia comandos de verd
 
 Os testes sobem o servidor sozinhos em uma porta livre (não briga com o servidor
 que você está usando no 8080) e o `render_check` roda os renderers fora do
-navegador, com um canvas falso.
+navegador, com um canvas falso. Se um teste reclamar que a porta já está ocupada,
+é servidor órfão de uma execução anterior — no Windows:
+
+```bash
+Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
+  Where-Object { $_.CommandLine -like "*server/server.py*" } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+### 4.5 Vendo os eventos da live ao vivo (/debug)
+
+<http://localhost:8080/debug> mostra cada comentário, like e presente que o bot
+envia, com o efeito que o jogo aplicou. É a forma rápida de separar "o bot não
+mandou" de "o jogo ignorou": se a lista estiver vazia, o problema é no TikTok ou
+no token; se tiver evento e o jogo não reagiu, é na regra do jogo. A página não
+exige token (é só leitura), então dá para deixar aberta sem risco.
 
 ## 5. As regras de cada jogo
 
@@ -178,6 +193,15 @@ Antes de começar aparece **LARGADA EM 00:10** (`COUNTDOWN_SECONDS`) com todo mu
 parado a 0 km/h. **Acima de cada carro** fica a placa com a colocação (círculo),
 o nome do dono e a velocidade em km/h (`KMH_FACTOR` converte px/frame em km/h,
 com teto em `KMH_MAX`).
+
+**A corrida espera a plateia.** No começo a fase é `esperando`: nada se move
+mesmo com os carros fixos na pista, e o snapshot manda `waitingFor` para o HUD
+avisar. Quem entra na live dispara a largada. Antes disso `reset()` não enche a
+pista, porque é o primeiro viewer que decide quando a corrida começa.
+
+**Vence quem estava mais perto.** Na reta final a ordem do grid não decide: o
+jogo compara a distância de entrada (`entry_dist`), ou seja, quem já estava
+avançado quando cruzou a chegada leva o primeiro lugar.
 
 **Like acelera o carro progressivamente.** O impulso das curtidas é *aditivo* ao
 de comentário/presente e cresce com o total de likes da pessoa, até o teto:
@@ -269,12 +293,15 @@ fila consegue o comando.
 
 ## 6. Presentes: categoria e potência
 
-O efeito do presente vem de **duas camadas**:
+O efeito do presente vem de **três camadas**:
 
 1. **nome** → categoria (NITRO / ÓLEO / ULTRAPASSAGEM), comparando sem acento e
    aceitando frase inteira ("Chuva de Dinheiro", "Bola de Espelhos");
 2. **valor em moedas** (`gift.diamond_count`, enviado pelo bot) → multiplicador
-   de potência, porque nome muda por região e não pode ser a única fonte.
+   de potência, porque nome muda por região e não pode ser a única fonte;
+3. **catálogo** (`config/presentes.json`) → quando a lib **não** manda o valor, o
+   nome é procurado lá (29 presentes com moedas e emoji). É o que faz o
+   `Universo TikTok` valer 44999 (×8) mesmo num presente que veio sem número.
 
 | Faixa (moedas) | Presentes | Multiplicador |
 |---|---|---|
@@ -299,7 +326,9 @@ oil…), porque o nome do presente muda conforme o país do criador.
 Presente sem nome conhecido e sem valor → **NITRO ×1** (nunca é jogado fora).
 Os valores acima valem para qualquer jogo; o que cada categoria faz está na
 seção de cada jogo. Para trocar o nome que dispara a sabotagem, edite
-`GIFT_OIL_KEYWORDS` no `.env`.
+`GIFT_OIL_KEYWORDS` no `.env`. Para corrigir moedas de um presente específico,
+edite `config/presentes.json` — é o arquivo que o `shared/gifts.py` valida no
+startup, então erro de digitação aparece na hora, não em live.
 
 ## 7. Estrutura
 
@@ -316,14 +345,16 @@ local_stream_games_prototype/
 ├── config/
 │   ├── duel.json        # personalização do duelo (nomes, cores, palavras, meta)
 │   ├── pipa.json        # personalização da arena (teto de pipas, cortes, ...)
-│   └── carros.json      # catálogo da corrida (Gol, Uno, motos...)
+│   ├── carros.json      # catálogo da corrida (Gol, Uno, motos...)
+│   └── presentes.json   # moedas e emoji por presente (fallback de valor)
 ├── shared/
 │   ├── config.py        # leitura do .env
 │   ├── commands.py      # comandos de texto (usados pelo platformer)
 │   ├── gifts.py         # presente -> efeito (NITRO / OIL / TURBO)
 │   ├── sides.py         # lados e palavras do duelo
 │   ├── pipas.py         # regras da arena
-│   └── carros.py        # catálogo de veículos
+│   ├── carros.py        # catálogo de veículos
+│   └── reconnect.py     # backoff com jitter (o bot não martela o TikTok)
 ├── deploy/
 │   ├── install.sh       # instalador Kali (venv + .env + systemd)
 │   ├── streamgames-server.service
@@ -331,6 +362,8 @@ local_stream_games_prototype/
 ├── client/
 │   ├── index.html       # launcher (seletor de jogo)
 │   ├── client.js        # WebSocket, HUD, roteia para o renderer do jogo
+│   ├── debug.html       # /debug: eventos crus da live
+│   ├── debug.js
 │   ├── style.css
 │   └── renderers/
 │       ├── corrida.js   # pista, parallax, câmera no líder
@@ -483,6 +516,9 @@ Nos dois casos, o OBS usa `https://seu-dominio.com/`. O WebSocket passa a
 | eventos da live não chegam (em VPS) | faltou `GAME_TOKEN` no `.env` do bot/servidor (veja 10.2) |
 | os presentes não viram efeito | nome do presente fora das keywords: `python3 tiktok/bot.py --list` |
 | nobody entra na pista | o bot está conectado mas o cooldown está altíssimo, ou o `user` está vazio |
+| presente chega mas vale ×1 | a lib não mandou as moedas: confira o nome em `config/presentes.json` |
+| a tela congelou depois do fim da partida | servidor velho de outra execução: mate o processo e suba de novo |
+| a live reconecta sem parar | é o backoff: começa em 5 s e dobra até 120 s (log `tentando de novo em Ns`) |
 
 ## 12. Limites conhecidos
 

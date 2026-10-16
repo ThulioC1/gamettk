@@ -35,7 +35,9 @@ export function create() {
         ? `larga em ${state.countdown}s`
         : state.phase === "over"
           ? "corrida encerrada"
-          : `faltam ${faltam} px`;
+          : state.phase === "esperando"
+            ? "aguardando a plateia"
+            : `faltam ${faltam} px`;
       return {
         score: `CARROS <b>${state.cars.length}</b>`,
         meta: leader ? `lider: <b>${escapeHtml(leader.name)}</b> · ${fase}` : `aguardando a live… · ${fase}`,
@@ -44,13 +46,17 @@ export function create() {
 
     onEvent(event, notices) {
       for (const notice of notices) {
-        if (notice.message) pushBanner(notice.message, { cor: corDoEvento(notice) });
+        if (!notice.message) continue;
+        const comEmoji = notice.emoji ? `${notice.emoji} ${notice.message}` : notice.message;
+        pushBanner(comEmoji, { cor: corDoEvento(notice) });
       }
     },
 
     onGameEvent(payload) {
       if (payload.kind === "go") {
         pushBanner("VALENDO!", { cor: "#fbbf24" });
+      } else if (payload.kind === "countdown") {
+        pushBanner("CHEGOU ALGUÉM! LARGADA EM 00:10", { cor: "#facc15" });
       } else if (payload.kind === "winner") {
         pushBanner(payload.message, { cor: "#22d3ee" });
       } else if (payload.kind === "restart") {
