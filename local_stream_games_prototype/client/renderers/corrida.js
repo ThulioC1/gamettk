@@ -44,19 +44,19 @@ export function create() {
 
     onEvent(event, notices) {
       for (const notice of notices) {
-        if (notice.message) pushBanner(notice.message, notice);
+        if (notice.message) pushBanner(notice.message, { cor: corDoEvento(notice) });
       }
     },
 
     onGameEvent(payload) {
       if (payload.kind === "go") {
-        pushBanner("VALENDO!", { color: "#fbbf24" });
+        pushBanner("VALENDO!", { cor: "#fbbf24" });
       } else if (payload.kind === "winner") {
-        pushBanner(payload.message, { color: "#22d3ee", confete: true });
+        pushBanner(payload.message, { cor: "#22d3ee" });
       } else if (payload.kind === "restart") {
-        pushBanner(payload.message, { color: "#e2e8f0" });
+        pushBanner(payload.message, { cor: "#e2e8f0" });
       } else if (payload.kind === "spill") {
-        pushBanner(payload.message, { color: "#f87171" });
+        pushBanner(payload.message, { cor: "#f87171" });
       }
     },
 
@@ -90,8 +90,64 @@ export function create() {
 
       drawPlacar(context, state);
       drawBanner(context, view.delta);
+      if (state.phase === "over" && state.winner) {
+        drawVencedor(context, state);
+      }
     },
   };
+}
+
+/* Cor do banner pelo tipo de evento: like, presente, derrapagem. */
+function corDoEvento(notice) {
+  if (notice.kind === "like") return "#f472b6";
+  if (notice.kind === "gift") return "#fbbf24";
+  if (notice.kind === "vehicle") return "#22d3ee";
+  if (notice.kind === "spill") return "#f87171";
+  return "#e2e8f0";
+}
+
+/* Fim de partida: cartela do vencedor com nome, veiculo, km/h e likes. */
+function drawVencedor(context, state) {
+  const w = state.winner;
+  const largura = 420;
+  const altura = 132;
+  const x = WIDTH / 2 - largura / 2;
+  const y = 150;
+
+  context.fillStyle = "rgba(3, 8, 16, .9)";
+  context.beginPath();
+  context.roundRect(x, y, largura, altura, 16);
+  context.fill();
+  context.strokeStyle = "#fbbf24";
+  context.lineWidth = 3;
+  context.stroke();
+
+  context.fillStyle = "#fbbf24";
+  context.font = "900 15px system-ui, sans-serif";
+  context.textAlign = "center";
+  context.fillText("VENCEDOR DA CORRIDA", WIDTH / 2, y + 30);
+
+  context.fillStyle = "#f8fafc";
+  context.font = "900 34px system-ui, sans-serif";
+  context.fillText(truncate(w.user, 18), WIDTH / 2, y + 70);
+
+  context.fillStyle = "#94a3b8";
+  context.font = "700 14px system-ui, sans-serif";
+  const detalhe = `${w.vehicle || "?"} · ${w.kmh} km/h · ${w.points} pontos · ${w.likes} likes`;
+  context.fillText(detalhe, WIDTH / 2, y + 96);
+
+  context.fillStyle = "#e2e8f0";
+  context.font = "600 13px system-ui, sans-serif";
+  context.fillText(`nova corrida em ${Math.max(0, Math.ceil((state.restartIn || 0) / 60))}s`, WIDTH / 2, y + 118);
+
+  // cor do veiculo do campeao
+  const campeao = state.cars.find((car) => car.user === w.user);
+  if (campeao) {
+    context.fillStyle = campeao.color;
+    context.beginPath();
+    context.roundRect(x + largura - 46, y + 16, 30, 30, 8);
+    context.fill();
+  }
 }
 
 function laneY(lane, lanes) {
@@ -350,49 +406,63 @@ function drawCar(context, car, x, y, time) {
     context.fill();
   }
 
-  drawPlaca(context, car, time);
+  drawPlaca(context, car, time, bodyH);
   context.restore();
 }
 
 /* Placa do piloto: numero + nome + km/h (o que a referencia mostra em cada carro). */
-function drawPlaca(context, car, time) {
-  const nome = truncate(car.name, 12);
+/* Placa ACIMA do carro: numero da colocacao, nome do viewer e km/h,
+ * com um tracinho ligando a placa no carro (ficava fácil não saber de quem era). */
+function drawPlaca(context, car, time, bodyH) {
+  const nome = truncate(car.name, 14);
   const kmh = `${car.kmh} km/h`;
 
-  context.font = "700 13px system-ui, sans-serif";
-  const largura = Math.max(96, context.measureText(nome).width + 78);
-  const altura = 30;
+  context.font = "700 14px system-ui, sans-serif";
+  const largura = Math.max(104, context.measureText(nome).width + 96);
+  const altura = 26;
   const x0 = -largura / 2;
-  const y0 = -34;
+  const y0 = -(bodyH / 2 + altura + 8);
 
-  context.fillStyle = "rgba(4, 12, 22, .82)";
+  // tracinho: placa -> carro
+  context.strokeStyle = car.color;
+  context.globalAlpha = 0.75;
+  context.lineWidth = 2;
   context.beginPath();
-  context.roundRect(x0, y0, largura, altura, 7);
-  context.fill();
+  context.moveTo(0, y0 + altura);
+  context.lineTo(0, -bodyH / 2 - 1);
+  context.stroke();
+  context.globalAlpha = 1;
 
-  // barrinha com a cor do veiculo
-  context.fillStyle = car.color;
-  context.fillRect(x0 + 4, y0 + 6, 4, altura - 12);
+  context.fillStyle = "rgba(4, 12, 22, .92)";
+  context.beginPath();
+  context.roundRect(x0, y0, largura, altura, 8);
+  context.fill();
+  context.strokeStyle = "rgba(148, 163, 184, .35)";
+  context.lineWidth = 1;
+  context.stroke();
 
   // numero da colocacao
-  context.fillStyle = "#1f9d55";
+  context.fillStyle = car.place === 1 ? "#facc15" : "#1f9d55";
   context.beginPath();
-  context.arc(x0 + 20, y0 + altura / 2, 12, 0, Math.PI * 2);
+  context.arc(x0 + 17, y0 + altura / 2, 11, 0, Math.PI * 2);
   context.fill();
-  context.fillStyle = "#ffffff";
-  context.font = "800 13px system-ui, sans-serif";
+  context.fillStyle = "#0b1220";
+  context.font = "800 12px system-ui, sans-serif";
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.fillText(String(car.place || car.number), x0 + 20, y0 + altura / 2 + 1);
+  context.fillText(String(car.place || car.number), x0 + 17, y0 + altura / 2 + 1);
 
-  context.fillStyle = "#e2e8f0";
+  // nome do dono
+  context.fillStyle = "#f8fafc";
   context.textAlign = "left";
-  context.font = "700 13px system-ui, sans-serif";
-  context.fillText(nome, x0 + 38, y0 + 11);
+  context.font = "700 14px system-ui, sans-serif";
+  context.fillText(nome, x0 + 34, y0 + altura / 2);
 
+  // velocidade
   context.fillStyle = car.kmh > 0 ? "#facc15" : "#64748b";
   context.font = "700 12px system-ui, sans-serif";
-  context.fillText(kmh, x0 + 38, y0 + 24);
+  context.textAlign = "right";
+  context.fillText(kmh, x0 + largura - 10, y0 + altura / 2);
 
   context.textBaseline = "alphabetic";
 }
@@ -430,26 +500,28 @@ function drawPlacar(context, state) {
 
 // ------------------------------------------------------------------ banner
 function pushBanner(text, opts = {}) {
-  scope.banner = { text, color: opts.color || "#e2e8f0", life: 1, confete: opts.confete };
+  scope.banner = { text, color: opts.cor || "#e2e8f0", life: 1, confete: opts.confete };
   scope.pops = scope.pops.slice(-4);
 }
 
 function drawBanner(context, delta) {
   if (!scope.banner) return;
-  scope.banner.life -= 0.008;
+  scope.banner.life -= 0.006;
   if (scope.banner.life <= 0) {
     scope.banner = null;
     return;
   }
 
-  context.fillStyle = "rgba(4, 12, 22, .82)";
+  context.font = "800 19px system-ui, sans-serif";
+  const largura = Math.min(WIDTH - 60, context.measureText(scope.banner.text).width + 60);
+
+  context.fillStyle = "rgba(4, 12, 22, .88)";
   context.beginPath();
-  context.roundRect(WIDTH / 2 - 230, ROAD_TOP - 6, 460, 44, 10);
+  context.roundRect(WIDTH / 2 - largura / 2, ROAD_TOP - 52, largura, 40, 10);
   context.fill();
   context.fillStyle = scope.banner.color;
-  context.font = "800 20px system-ui, sans-serif";
   context.textAlign = "center";
-  context.fillText(scope.banner.text, WIDTH / 2, ROAD_TOP + 23);
+  context.fillText(scope.banner.text, WIDTH / 2, ROAD_TOP - 25);
 }
 
 function drawOil(context, x, y) {

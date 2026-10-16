@@ -14,6 +14,7 @@ from pathlib import Path
 TESTS_DIR = Path(__file__).resolve().parent
 
 SUITE = [
+    ("config", "test_config.py"),
     ("gifts", "test_gifts.py"),
     ("corrida", "test_corrida.py"),
     ("duelo", "test_duelo.py"),

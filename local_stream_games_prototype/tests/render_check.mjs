@@ -284,6 +284,27 @@ console.log("\n== corrida: os carros aparecem e andam ==");
   create(ctxPlaca).draw(ctxPlaca, ESTADOS.corrida, META, { time: 1, delta: 1 });
   check("placa mostra km/h", textos.some((t) => /km\/h/.test(t)), textos.filter((t) => /km/.test(t)).slice(0, 3).join("|"));
 
+  // o nome tem que sair ACIMA do carro (foi pedido explicitamente).
+  // Usamos o estado de largada: na corrida, quem fica muito para tras sai da tela.
+  posicoes.length = 0;
+  const nomeNaTela = [];
+  const ctxNome = {
+    ...mockContext(),
+    measureText: (t) => ({ width: 40 }),
+    fillText: (t, x, y) => { nomeNaTela.push({ t: String(t), x, y }); },
+  };
+  create(ctxNome).draw(ctxNome, largada, META, { time: 1, delta: 1 });
+  const carrosNaTela = posicoes.filter((p) => p.tipo === "translate" && p.y >= 200);
+  const linhaDoCarro = carrosNaTela.length ? Math.min(...carrosNaTela.map((p) => p.y)) : 0;
+  const nomeDaAna = nomeNaTela.find((n) => n.t === "ana");
+  check("o nome do dono e desenhado", Boolean(nomeDaAna), nomeNaTela.map((n) => n.t).slice(0, 6).join("|"));
+  // coordenadas do texto sao locais ao carro: negativo = acima do centro
+  check("o nome fica ACIMA do carro", Boolean(nomeDaAna) && nomeDaAna.y < 0,
+    nomeDaAna ? `nome y=${Math.round(nomeDaAna.y)} (carro em y=${Math.round(linhaDoCarro)})` : "sem nome");
+  check("todos os donos aparecem (nomes na tela)",
+        ["ana", "br.com", "carla_", "duda.exe"].every((n) => nomeNaTela.some((t) => t.t === n)),
+        nomeNaTela.filter((n) => !/km\/h|LARGADA|CHEGADA|CARROS|MOTOS|LIDERANÇA/.test(n.t)).map((n) => n.t).join("|"));
+
   // o catalogo (painel esquerdo) precisa estar no describe do jogo
   check("catalogo tem carros e motos", META.catalog.cars.length > 0 && META.catalog.motos.length > 0,
     `${META.catalog.cars.length} carros, ${META.catalog.motos.length} motos`);

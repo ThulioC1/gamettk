@@ -88,14 +88,17 @@ python3 simulator/simulator.py --auto        # outra terminal: live fictícia
 O simulador `--auto` cria viewers fictícios comentando, mandando presentes e
 likes — é o jeito mais rápido de ver a pista se enchendo.
 
-Modo console, evento por evento:
+Modo console, evento por evento (cada comando responde com `>>` do jogo):
 
-```bash
-python3 simulator/simulator.py
-# evento> comento vou ganhar
-# evento> presente Galaxy
-# evento> like
-# evento> auto
+```
+evento> carro gol          # escolhe/troca o carro
+evento> gol                # atalho: só o nome do carro já escolhe
+evento> comento vou ganhar
+evento> presente Galaxy    # presente com nome e valor em moedas
+evento> like
+evento> follow
+evento> auto               # liga/desliga a live simulada
+evento> help / quit
 ```
 
 ### 4.2 Com a live do TikTok
@@ -127,6 +130,31 @@ python3 server/server.py --game duelo       # sobe direto no Duelo de Torres
 No navegador, o seletor no topo troca sem reiniciar o servidor, ou por URL:
 <http://localhost:8080/?game=pipa>.
 
+### 4.4 Rodando os testes
+
+```bash
+cd local_stream_games_prototype
+
+python3 tests/run_all.py              # suíte inteira (~90 s)
+python3 tests/run_all.py corrida      # só um jogo
+python3 tests/run_all.py config render
+
+node tests/render_check.mjs           # só os renderers (precisa de node)
+```
+
+Cada teste imprime `OK`/`FAIL` por verificação e termina com `TUDO VERDE` ou
+`FALHAS: [...]`. Para testar um trecho só:
+
+```bash
+python3 tests/test_corrida.py   # regra da corrida
+python3 tests/test_config.py    # .env: chave faltando no DEFAULTS
+python3 tests/test_interativo.py  # console do simulador (envia comandos de verdade)
+```
+
+Os testes sobem o servidor sozinhos em uma porta livre (não briga com o servidor
+que você está usando no 8080) e o `render_check` roda os renderers fora do
+navegador, com um canvas falso.
+
 ## 5. As regras de cada jogo
 
 ### 5.1 Corrida na Live
@@ -147,8 +175,35 @@ carros empilhados em faixas, placa com número/nome/velocidade e catálogo de ve
 | primeiro a cruzar a chegada | vence, e a próxima corrida começa com contagem |
 
 Antes de começar aparece **LARGADA EM 00:10** (`COUNTDOWN_SECONDS`) com todo mundo
-parado a 0 km/h. Cada carro mostra número, nome do viewer e velocidade em km/h
-(`KMH_FACTOR` converte px/frame em km/h).
+parado a 0 km/h. **Acima de cada carro** fica a placa com a colocação (círculo),
+o nome do dono e a velocidade em km/h (`KMH_FACTOR` converte px/frame em km/h,
+com teto em `KMH_MAX`).
+
+**Like acelera o carro progressivamente.** O impulso das curtidas é *aditivo* ao
+de comentário/presente e cresce com o total de likes da pessoa, até o teto:
+
+| likes acumulados | efeito |
+|---|---|
+| 1 | +2 km/h |
+| 5 | +12 km/h |
+| 20 | +48 km/h |
+| 60+ | no teto (`LIKE_SPEED_CAP`) |
+
+Ajuste com `LIKE_BOOST_STEP` (quanto cada curtida rende), `LIKE_SPEED_CAP` (teto) e
+`LIKE_BOOST_DECAY` (o quanto o impulso decai durante a corrida).
+
+**Dois carros de casa** ficam sempre na pista, mesmo com a live vazia:
+**Vitinmilgrau** (G8) e **Narutobebado** (XRE 300). Eles correm sozinhos
+(`RIVAL_SPEED`), nunca saem da pista quando ela enche e podem ganhar — é o
+adversário para quem chegar. Renomeie em `RIVAL_1_NAME`/`RIVAL_2_NAME` e troque o
+veículo em `RIVAL_1_VEHICLE`/`RIVAL_2_VEHICLE`.
+
+**Banner de efeito.** Cada presente e cada like dizem na tela o que causaram:
+`ROSA (comum) -> +120 km/h (ponta: 320 km/h)`, `CHUVA DE DINHEIRO -> 2 manchas na
+pista`, `fef_ CURTIU (14 likes) -> +24 km/h (ponta: 348 km/h)`, `KAROL DERRAPOU!`.
+
+**Fim de partida**: cartela do vencedor com nome, veículo, km/h, pontos, likes e
+contagem para a próxima corrida.
 
 Catálogo em [`config/carros.json`](config/carros.json): Gol, Uno, Chevette, Fusca,
 Opala, Kombi, Celta, Palio, Yaris, Corolla, G8 e as motos 160, Biz, PCX, Pop 100,

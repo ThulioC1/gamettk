@@ -5,6 +5,112 @@ Detalhe de arquitetura e regras de bolso: `AGENTS.md`.
 
 ---
 
+## 2026-10-16 — nome do dono acima do carro
+
+**O quê**
+- A placa subiu para **acima do carro** de forma inequívoca: numero da colocação
+  (dourado no 1º lugar), nome do dono em 14 px e km/h à direita, com um tracinho
+  colorido ligando a placa no carro. Antes era uma placa pequena efacil passar
+  batido, o que fez o usuário achar que o nome não aparecia.
+- `tests/render_check.mjs` ganhou três verificações sobre isso: o nome é
+  desenhado, fica com coordenada **acima** do centro do carro, e **todos** os
+  donos presentes na tela aparecem.
+
+**Arquivos tocados**
+`client/renderers/corrida.js`, `tests/render_check.mjs`, `README.md`.
+
+**Como verifiquei**
+`node tests/render_check.mjs` → `o nome fica ACIMA do carro -> nome y=-38 (carro
+em y=250)` e `todos os donos aparecem -> ...|duda.exe|3|carla_|2|br.com|1|ana`.
+`python3 tests/run_all.py` → 10 suítes verdes.
+
+---
+
+## 2026-10-16 — like progressivo, carros de casa, cartela de vencedor, banner de efeito
+
+**O quê (os quatro pedidos do usuário)**
+1. **Like acelera progressivamente.** Novo campo `like_boost`, **aditivo** ao
+   impulso de comentário/presente: cada curtida rende `LIKE_BOOST_STEP` e o total
+   cresce até `LIKE_SPEED_CAP`, decaindo devagar na corrida (`LIKE_BOOST_DECAY`).
+   Medido: 1 like → 252 km/h, 5 → 264, 20 → 311, 60 → 400 (teto).
+2. **Cartela do vencedor** no fim da partida (fase `over`): nome, veículo, km/h,
+   pontos, likes e contagem para a próxima. O `winner` no snapshot ganhou esses
+   campos e o evento passou a citar o veículo.
+3. **Dois carros de casa**: `Vitinmilgrau` (G8) e `Narutobebado` (XRE 300),
+   sempre na pista mesmo com a live vazia, nunca removidos quando a pista enche,
+   velocidade própria (`RIVAL_SPEED`) e podem ganhar. Eventos da live usam
+   `_car_do_usuario`, então um viewer chamado "Vitinmilgrau" não toma o carro fixo.
+4. **Banner de efeito** para presente e like, dizendo o que mudou:
+   `URSULA CURTIU (4 likes) -> +10 km/h (ponta: 252 km/h)`,
+   `OLEO (comum) -> 1 manchas na pista`, `ANA.LIVE VENCEU COM G8!`. Cor por tipo de
+   evento e banner com largura variável (textos longos não estouravam a tela).
+
+**Bugs encontrados no caminho**
+- **Chaves novas de like/rivais faltando no `DEFAULTS`**: `get_int` devolvia 0 e o
+  like "não acelerava" — a mesma armadilha do `CAR_MAX`. Para fechar de vez,
+  entrou **`tests/test_config.py`**, que falha se qualquer chave lida no código
+  não estiver em `DEFAULTS`/`.env.example`, ou se sobrar chave morta. Ele já achou
+  `DUEL_CONFIG`/`PIPA_CONFIG` faltando.
+- `harness.check()` quebrava com `UnicodeEncodeError` ao imprimir `→` no console
+  cp1252 do Windows (armadilha 7 do AGENTS.md, que eu tinhabredesencontrado).
+  Agora o harness reconfigura stdout/stderr com `errors="replace"`.
+- Nitro mostrava `+400 km/h` (o total, não o ganho) e `+0 km/h` quando o carro já
+  estava no teto — virou "já está no nitro máximo".
+- `KMH_MAX` (teto do mostrador) impede a placa de mostrar 1300 km/h.
+- Vários `IndentationError` causados pelos meus scripts de patch reescrevendo
+  arquivo: o `def _on_comment` perdeu a indentação e só apareceu no import.
+
+**Arquivos tocados**
+`server/games/corrida.py`, `client/renderers/corrida.js`, `shared/config.py`,
+`.env.example`, `tests/{test_corrida,test_config,test_gifts,test_token,_harness}.py`,
+`README.md`.
+
+**Como verifiquei**
+`python3 tests/run_all.py` → 9 suítes verdes. `test_corrida.py` ganhou as seções
+H (likes), I (carros de casa), J (vencedor) e K (banner de efeito). Demo com
+`simulator --auto`: o console mostra `DERRAPOU`, `TROCOU PARA G8`,
+`ULTRAPASSAGEM! -> +200 km/h e +60 px de posição` e `ANA.LIVE VENCEU COM G8!`.
+
+---
+
+## 2026-10-16 — escolher carro no console (achado pelo usuário no Kali)
+
+**O quê**
+- `simulator/simulator.py`: comando `carro <nome>` e **atalho**: escrever só o
+  nome (`gol`, `XRE 300`, `moto biz`) já escolhe. Antes respondia
+  "nao entendi. digite 'help'".
+- **Eco no console**: cada comando manda e confirma (`>> comentario enviado`),
+  e uma task `eco()` imprime o que o jogo respondeu (`>> voce ENTROU COM GOL`).
+  Antes o REPL não devolvia nada — daí a impressão de que "não acontecia nada".
+- `server/games/corrida.py`: aviso novo ao **trocar** de carro com alguém já na
+  pista (`voce TROCOU PARA XRE 300`); antes a troca era silenciosa.
+- `server/server.py`: cada envio do broadcast tem prazo de 2 s. Um cliente com TCP
+  travado segurava o `gather`, o loop de 60 Hz parava de responder ping e todos
+  recebiam `1011 keepalive ping timeout` (o erro que aparecia no terminal).
+  Desconexão normal agora é tratada separado de travamento.
+- `--auto` passou a citar carros nos comentários fictícios, exercitando a escolha.
+- **Live fictícia semeada**: `--auto` usava `random` global, então cada rodada era
+  diferente e `test_simulador.py` falhava de forma intermitente (1 em 3). Agora a
+  sequência é reprodutível (`--seed N` para trocar).
+- `tests/test_interactivo.py` cobrando `carro`, o atalho, o eco do console, a
+  troca de veículo e o `veiculo` final no snapshot.
+
+**Por quê**
+O usuário testou a escolha de carro nos dois consoles (simulador e log do
+servidor) e "nada" aconteceu: o comando não existia e não havia retorno nenhum na
+tela. Também era a explicação mais provável do `1011` recorrente no terminal dele.
+
+**Arquivos tocados**
+`simulator/simulator.py`, `server/games/corrida.py`, `server/server.py`,
+`tests/test_interactivo.py`, `README.md`.
+
+**Como verifiquei**
+Execução manual com stdin: `carro gol` → `>> voce ENTROU COM GOL`,
+`carro naoexiste` → "nao achei no catalogo", `XRE 300` → `TROCOU PARA XRE 300`.
+`python3 tests/run_all.py` → 9 suítes verdes.
+
+---
+
 ## 2026-10-16 — Corrida na Live no formato da referência (modelos/2.jpeg)
 
 **O quê**

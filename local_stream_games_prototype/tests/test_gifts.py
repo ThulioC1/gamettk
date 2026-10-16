@@ -56,7 +56,9 @@ def boost_for(name, coins):
     game = build("corrida")
     game.handle_event({"event": "comment", "user": "ana", "text": "oi"})
     game.handle_event({"event": "gift", "user": "ana", "gift": name, "value": coins, "count": 1})
-    return game.cars[0].boost
+    # cars[0] e um dos fixos (Vitinmilgrau/Narutobebado); o da ana vem depois
+    ana = next(car for car in game.cars if car.user == "ana")
+    return ana.boost
 
 rosa, universo = boost_for("Rosa", 1), boost_for("Universo TikTok", 44999)
 galaxia = boost_for("Galáxia", 1000)

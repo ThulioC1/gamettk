@@ -66,9 +66,10 @@ live → tiktok/bot.py (TikTokLive em thread) → WebSocket JSON
 ## 3. Comandos que importam
 
 ```bash
-# suíte completa (porta livre por teste, ~50 s)
+# suíte completa (porta livre por teste, ~90 s)
 python3 tests/run_all.py
 python3 tests/run_all.py duelo      # só um arquivo
+python3 tests/run_all.py corrida render   # só alguns
 
 # jogo local sem TikTok (dois terminais)
 python3 server/server.py --game duelo      # http://localhost:8080
@@ -93,8 +94,10 @@ curl -s localhost:8080/health
 | Todo jogo devolve snapshot **serializável em JSON** (só tipos simples) | vai cru pelo WebSocket a 30 Hz |
 | Client só desenha o snapshot; não simula física | latência de interpolação é ok, inconsistência não |
 | Limite de potência em presente (boost, blocos, cortes) | presente de 45.000 moedas zerava a partida |
+| Velocidade mostrada tem teto (`KMH_MAX`) | sem isso a placa exibia 1300 km/h num turbo |
 | Cooldown por viewer + teto por minuto, em `bot.py` | 200 pessoas na live não podem travar o jogo |
 | Teste novo vai em `tests/`, com `check()` do `_harness` | Assertion ad-hoc em arquivo temporário morre com a sessão |
+| Toda chave de `.env` em `shared/config.py::DEFAULTS` e no `.env.example` | `tests/test_config.py` falha se faltar uma (já pegou `CAR_MAX` e `LIKE_BOOST_STEP`) |
 
 ## 5. Armadilhas já mordidas (não repita)
 
@@ -134,6 +137,9 @@ curl -s localhost:8080/health
     quebrou a Corrida inteira.
 14. **Argumento e posição da chamada precisam bater.** No Python, sigilo em
     keyword; em JS, o nome importa igual. Erro desses só aparece em runtime.
+15. **Script que reescreve arquivo apaga indentação.** Vários `IndentationError`
+    vieram de patch por string.replace; depois de mexer, rode `py -c "import
+    server.games.<modulo>"` antes da suíte. O erro aparece longe da causa.
 
 ## 6. Multijogo (desde 2026-10-16)
 

@@ -13,6 +13,13 @@ import time
 from pathlib import Path
 from typing import Iterator, List, Optional
 
+# O console do Windows e' cp1252: imprimir "->" ou "km/h" com seta quebra o teste
+# inteiro com UnicodeEncodeError. Troca os caracteres problematicos em vez de
+# estourar (armadilha 7 do AGENTS.md).
+with contextlib.suppress(AttributeError, ValueError):
+    sys.stdout.reconfigure(errors="replace")
+    sys.stderr.reconfigure(errors="replace")
+
 PROJECT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT))
 

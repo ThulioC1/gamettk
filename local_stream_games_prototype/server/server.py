@@ -79,8 +79,15 @@ def _allow_event() -> bool:
     return True
 
 
+SEND_TIMEOUT = 2.0  # segundos; cliente travado nao pode segurar o loop do jogo
+
+
 async def broadcast(payload: Dict[str, Any], game_type: Optional[str] = None) -> None:
-    """Envia o JSON para todos, ou so para quem assiste um jogo especifico."""
+    """Envia o JSON para todos, ou so para quem assiste um jogo especifico.
+
+    Cada envio tem prazo: um cliente com TCP travado segurava o `gather`, o loop
+    de 60 Hz parava de responder ping e todo mundo recebia 1011.
+    """
     if game_type is None:
         targets = list(clients)
     else:
@@ -88,7 +95,30 @@ async def broadcast(payload: Dict[str, Any], game_type: Optional[str] = None) ->
     if not targets:
         return
     message = json.dumps(payload)
-    await asyncio.gather(*(client.send(message) for client in targets), return_exceptions=True)
+
+    async def envia(client: Any) -> str:
+        try:
+            await asyncio.wait_for(client.send(message), timeout=SEND_TIMEOUT)
+            return "ok"
+        except asyncio.TimeoutError:
+            return "lento"
+        except ConnectionClosed:
+            return "fechado"
+        except Exception:  # noqa: BLE001
+            return "erro"
+
+    resultados = await asyncio.gather(*(envia(client) for client in targets), return_exceptions=True)
+
+    for client, resultado in zip(targets, resultados):
+        if resultado == "fechado":
+            clients.discard(client)
+            watching.pop(client, None)
+        elif resultado != "ok":
+            LOGGER.warning("client travado (%s): fechando", resultado)
+            clients.discard(client)
+            watching.pop(client, None)
+            with contextlib.suppress(Exception):
+                await client.close()
 
 
 async def broadcast_status() -> None:

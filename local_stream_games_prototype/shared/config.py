@@ -35,12 +35,28 @@ DEFAULTS: Dict[str, str] = {
     "GRID_ROW_GAP": "190",
     "CAR_LANES": "5",
     "KMH_FACTOR": "40",
+    "KMH_MAX": "400",
+    # like: impulso acumulado e com teto
+    "LIKE_BOOST_STEP": "6",
+    "LIKE_BOOST_FRAMES": "90",
+    "LIKE_SPEED_CAP": "150",
+    "LIKE_FRAMES_PER_LIKE": "4",
+    "LIKE_BOOST_DECAY": "99950",
+    # carros de casa (sempre na pista, disputam com quem chegar)
+    "RIVAL_1_NAME": "Vitinmilgrau",
+    "RIVAL_2_NAME": "Narutobebado",
+    "RIVAL_1_VEHICLE": "g8",
+    "RIVAL_2_VEHICLE": "xre300",
+    "RIVAL_SPEED": "88",
     # Catalogo de veiculos (vazio = config/carros.json)
     "CARROS_CONFIG": "",
     # Presentes -> efeitos (vazio = usar shared.gifts.DEFAULT_KEYWORDS)
     "GIFT_NITRO_KEYWORDS": "",
     "GIFT_OIL_KEYWORDS": "",
     "GIFT_TURBO_KEYWORDS": "",
+    # JSONs de personalizacao (vazio = config/*.json)
+    "DUEL_CONFIG": "",
+    "PIPA_CONFIG": "",
 }
 
 

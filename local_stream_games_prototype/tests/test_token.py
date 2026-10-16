@@ -56,9 +56,12 @@ async def main():
     return sem, errado, certo
 
 resultado = asyncio.run(main())
-check("conexao sem token NAO injeta evento", resultado[0][1] == 0, str(resultado[0]))
-check("token errado NAO injeta evento", resultado[1][1] == 0, str(resultado[1]))
-check("token certo injeta evento", resultado[2][1] >= 1, str(resultado[2]))
+# a corrida sempre tem 2 carros fixos na pista; o que nao pode aparecer e o
+# carro do usuario "x" que o evento nao autorizado tentaria criar
+FIXOS = 2
+check("conexao sem token NAO injeta evento", resultado[0][1] == FIXOS, str(resultado[0]))
+check("token errado NAO injeta evento", resultado[1][1] == FIXOS, str(resultado[1]))
+check("token certo injeta evento", resultado[2][1] > FIXOS, str(resultado[2]))
 
 # o navegador (viewer, sem token) ainda precisa receber o estado
 async def viewer_recebe():
